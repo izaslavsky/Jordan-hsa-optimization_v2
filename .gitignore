@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Track only the named notebooks below; ignore all others
+*.ipynb
+!HSA_FINAL.ipynb
+!Patient_Allocation_Probabilistic_v2.ipynb
+!Patient_Allocation_for_Modeling.ipynb
+!GEE_Climate_Features_by_Facilities.ipynb
+!GEE_HSA_Weekly_Climate_Lagged.ipynb
+!GEE_local_Climate_Features_by_Facilities.ipynb
+!GEE_local_HSA_Daily_Climate.ipynb
+!GEE_local_HSA_Weekly_Climate_Lagged.ipynb
+!GEE_local_HSA_Weekly_Climate_Lagged_chunked.ipynb
+!Generate_Modeling_Dataset.ipynb
+!Generate_Daily_Modeling_Dataset.ipynb
+!run_climate_health_modeling.ipynb
+!run_climate_models_daily.ipynb
+!compare_delineations.ipynb
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary
+*.tmp
+*.bak
+*~
+
+# Google OAuth credentials — never commit
+client_secrets.json
+
+# Large raster files — download from WorldPop (see README)
+*.tif
+
+# ── Publication data rules ────────────────────────────────────────────────────
+# Only SYNMOD* files belong in this repo.
+# Real patient data (INF_* and NCD_* without SYNMOD prefix) must never be committed.
+data/INF_*
+data/NCD_*
+data/SYNMOD_generation_report.json
+
+# Generated outputs — populated at runtime, not tracked
+out/
+!out/.gitkeep
+
+# Misc artefacts
+*.zip
+*.xlsx
