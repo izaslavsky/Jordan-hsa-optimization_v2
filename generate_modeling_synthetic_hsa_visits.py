@@ -15,6 +15,7 @@ import argparse
 import csv
 import json
 import math
+import os
 import random
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -409,7 +410,10 @@ def main():
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_INF / "data")
     parser.add_argument("--seed", type=int, default=20260418)
     parser.add_argument("--target-scale", type=float, default=0.75)
+    parser.add_argument("--boundary-version", default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                        help="HSA boundary version (v6, v7, v8). Must match the run that produced allocation/weekly files.")
     args = parser.parse_args()
+    bv = args.boundary_version
 
     configs = [
         Config(
@@ -417,9 +421,9 @@ def main():
             repo=DEFAULT_INF,
             source_synthetic_visits=DEFAULT_INF / "data" / "SYNINF_patient_visits.csv",
             source_facilities=DEFAULT_INF / "data" / "INF_facility_coordinates.csv",
-            source_assignments=DEFAULT_INF / "out" / "INF_footprint_facility_hsa_assignments.csv",
-            weekly_target=DEFAULT_INF / "out" / "INF_footprint_weekly_diarrheal_adjusted.csv",
-            weekly_secondary=DEFAULT_INF / "out" / "INF_footprint_weekly_infectious_adjusted.csv",
+            source_assignments=DEFAULT_INF / "out" / f"INF_footprint_facility_hsa_assignments_{bv}.csv",
+            weekly_target=DEFAULT_INF / "out" / f"INF_footprint_weekly_diarrheal_adjusted_{bv}.csv",
+            weekly_secondary=DEFAULT_INF / "out" / f"INF_footprint_weekly_infectious_adjusted_{bv}.csv",
             output_name="SYNMODINF_patient_visits.csv",
             target_col="diarrheal_count_adjusted",
             secondary_col="infectious_count_adjusted",
@@ -433,9 +437,9 @@ def main():
             repo=DEFAULT_NCD,
             source_synthetic_visits=DEFAULT_INF / "data" / "SYNNCD_patient_visits.csv",
             source_facilities=DEFAULT_NCD / "data" / "NCD_facility_coordinates.csv",
-            source_assignments=DEFAULT_NCD / "out" / "NCD_footprint_facility_hsa_assignments.csv",
-            weekly_target=DEFAULT_NCD / "out" / "NCD_footprint_weekly_hypertension_adjusted.csv",
-            weekly_secondary=DEFAULT_NCD / "out" / "NCD_footprint_weekly_ncd_adjusted.csv",
+            source_assignments=DEFAULT_NCD / "out" / f"NCD_footprint_facility_hsa_assignments_{bv}.csv",
+            weekly_target=DEFAULT_NCD / "out" / f"NCD_footprint_weekly_hypertension_adjusted_{bv}.csv",
+            weekly_secondary=DEFAULT_NCD / "out" / f"NCD_footprint_weekly_ncd_adjusted_{bv}.csv",
             output_name="SYNMODNCD_patient_visits.csv",
             target_col="hypertension_count_adjusted",
             secondary_col="ncd_count_adjusted",

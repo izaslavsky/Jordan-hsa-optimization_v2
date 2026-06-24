@@ -3,12 +3,12 @@
 Assemble the daily modeling dataset for climate-health analysis.
 
 Inputs:
-  {OUT_DIR}/INF_footprint_daily_diarrheal.csv          (from generate_daily_disease_counts.py)
-  {OUT_DIR}/DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY/       (from GEE_local_HSA_Daily_Climate.ipynb)
-  jordan-hsa-dlnm/out/dlnm/hsa_metadata.csv      (sanitation quality)
+  {OUT_DIR}/INF_footprint_daily_diarrheal_{ver}.csv           (from generate_daily_disease_counts.py)
+  {OUT_DIR}/DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_{VER}/        (from GEE_local_HSA_Daily_Climate.ipynb)
+  data/hsa_metadata.csv                                        (sanitation quality)
 
 Outputs:
-  {OUT_DIR}/modeling/INF_footprint_daily_modeling_dataset.csv
+  {OUT_DIR}/modeling/INF_footprint_daily_modeling_dataset_{ver}.csv
   Columns:
     hsa_id, date, diarrheal_count
     P_precip, T_mean_C, T_max_C, T_min_C, Td_C, DTR_C,
@@ -118,18 +118,25 @@ def main():
     global HEALTH_FILE, CLIMATE_DIR, OUT_DIR, OUT_FILE
     parser = argparse.ArgumentParser(description="Assemble the daily modeling dataset")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR))
+    parser.add_argument(
+        "--boundary-version",
+        default="v7",
+        help="HSA boundary version (v6, v7, v8). Derives default health-file, "
+             "climate-dir, and output filenames. Default: v7.",
+    )
     parser.add_argument("--health-file", default=None)
     parser.add_argument("--climate-dir", default=None)
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args()
 
+    ver = args.boundary_version
     pipeline_out = Path(args.out_dir)
     if not pipeline_out.is_absolute():
         pipeline_out = BASE_DIR / pipeline_out
-    HEALTH_FILE = Path(args.health_file) if args.health_file else pipeline_out / "INF_footprint_daily_diarrheal.csv"
-    CLIMATE_DIR = Path(args.climate_dir) if args.climate_dir else pipeline_out / "DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY"
+    HEALTH_FILE = Path(args.health_file) if args.health_file else pipeline_out / f"INF_footprint_daily_diarrheal_{ver}.csv"
+    CLIMATE_DIR = Path(args.climate_dir) if args.climate_dir else pipeline_out / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_{ver.upper()}"
     OUT_DIR = Path(args.output_dir) if args.output_dir else pipeline_out / "modeling"
-    OUT_FILE = OUT_DIR / "INF_footprint_daily_modeling_dataset.csv"
+    OUT_FILE = OUT_DIR / f"INF_footprint_daily_modeling_dataset_{ver}.csv"
 
     print("=" * 60)
     print("DAILY MODELING DATASET PREPARATION")

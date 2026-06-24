@@ -28,7 +28,7 @@ from difflib import get_close_matches
 
 # Directories
 DATA_DIR = Path('data')
-DEFAULT_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}"))
+DEFAULT_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out"))
 OUT_DIR = Path(DEFAULT_OUT_DIR)
 
 # Parameters
@@ -72,9 +72,22 @@ def standardize_facility_name(name: str) -> str:
     return name
 
 
+def _resolve_data_file(network: str, suffix: str) -> Path:
+    """Return data/NETWORK_suffix, falling back to data/SYNMODNETWORK_suffix."""
+    real = DATA_DIR / f'{network}_{suffix}'
+    if real.exists():
+        return real
+    synmod = DATA_DIR / f'SYNMOD{network}_{suffix}'
+    if synmod.exists():
+        return synmod
+    raise FileNotFoundError(
+        f"Data file not found as '{real.name}' or '{synmod.name}' in {DATA_DIR}"
+    )
+
+
 def load_authoritative_facilities(network: str) -> pd.DataFrame:
     """Load authoritative facility coordinates."""
-    auth_file = DATA_DIR / f'{network}_facility_coordinates.csv'
+    auth_file = _resolve_data_file(network, 'facility_coordinates.csv')
 
     if not auth_file.exists():
         raise FileNotFoundError(f"Authoritative file not found: {auth_file}")
@@ -96,7 +109,7 @@ def load_authoritative_facilities(network: str) -> pd.DataFrame:
 
 def load_diagnosis_groups(network: str) -> dict:
     """Load diagnosis group mappings."""
-    group_file = DATA_DIR / f'{network}_groups_of_diagnoses.csv'
+    group_file = _resolve_data_file(network, 'groups_of_diagnoses.csv')
 
     if not group_file.exists():
         raise FileNotFoundError(f"Diagnosis groups file not found: {group_file}")
@@ -123,7 +136,7 @@ def load_diagnosis_groups(network: str) -> dict:
 
 def load_patient_data(network: str) -> pd.DataFrame:
     """Load patient visit data."""
-    patient_file = DATA_DIR / f'{network}_patient_visits.csv'
+    patient_file = _resolve_data_file(network, 'patient_visits.csv')
 
     if not patient_file.exists():
         raise FileNotFoundError(f"Patient data not found: {patient_file}")

@@ -4,10 +4,10 @@ Generate daily diarrheal case counts per HSA.
 
 Input:
   data/INF_patient_visits.csv
-  {OUT_DIR}/INF_footprint_facility_hsa_assignments.csv
+  {OUT_DIR}/INF_footprint_facility_hsa_assignments_{BOUNDARY_VERSION}.csv
 
 Output:
-  {OUT_DIR}/INF_footprint_daily_diarrheal.csv
+  {OUT_DIR}/INF_footprint_daily_diarrheal_{BOUNDARY_VERSION}.csv
   Columns: hsa_id, date, diarrheal_count  (float, gravity-weighted)
 """
 
@@ -25,10 +25,12 @@ import pandas as pd
 # ---------------------------------------------------------------------------
 BASE_DIR        = Path(__file__).resolve().parent
 DEFAULT_OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
-PATIENT_FILE    = BASE_DIR / "data" / "INF_patient_visits.csv"
+_real_visits = BASE_DIR / "data" / "INF_patient_visits.csv"
+PATIENT_FILE    = _real_visits if _real_visits.exists() else BASE_DIR / "data" / "SYNMODINF_patient_visits.csv"
 OUT_DIR         = BASE_DIR / DEFAULT_OUT_DIR
-ALLOC_FILE      = OUT_DIR / "INF_footprint_facility_hsa_assignments.csv"
-OUT_FILE        = OUT_DIR / "INF_footprint_daily_diarrheal.csv"
+_DEFAULT_BV     = os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7"))
+ALLOC_FILE      = OUT_DIR / f"INF_footprint_facility_hsa_assignments_{_DEFAULT_BV}.csv"
+OUT_FILE        = OUT_DIR / f"INF_footprint_daily_diarrheal_{_DEFAULT_BV}.csv"
 
 # Codes changed mid-2022. Data has a system gap June 2-30, 2022 (zero visits
 # across all diagnoses — confirmed in raw data). Effective start is 2022-07-01.
@@ -80,7 +82,7 @@ def main():
         default="v7",
         help="HSA boundary bundle version to use for facility-to-HSA assignments "
              "(v6, v7, or v8). Must match the BOUNDARY_VERSION used in "
-             "Patient_Allocation_Probabilistic_v2.ipynb. Default: v7.",
+             "Population_Allocation_Probabilistic_v2.ipynb. Default: v7.",
     )
     args = parser.parse_args()
 
@@ -88,7 +90,7 @@ def main():
     if not OUT_DIR.is_absolute():
         OUT_DIR = BASE_DIR / OUT_DIR
     ALLOC_FILE = OUT_DIR / f"INF_footprint_facility_hsa_assignments_{args.boundary_version}.csv"
-    OUT_FILE = OUT_DIR / "INF_footprint_daily_diarrheal.csv"
+    OUT_FILE = OUT_DIR / f"INF_footprint_daily_diarrheal_{args.boundary_version}.csv"
     if args.patient_file:
         PATIENT_FILE = Path(args.patient_file)
         if not PATIENT_FILE.is_absolute():

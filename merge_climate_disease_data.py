@@ -32,13 +32,16 @@ def parse_args():
     parser.add_argument("--network", default=os.environ.get("NETWORK", "INF"))
     parser.add_argument("--hsa-mode", default=os.environ.get("HSA_MODE", "footprint"))
     parser.add_argument("--disease-focus", default=os.environ.get("DISEASE_FOCUS"))
-    parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")))
+    parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
+    parser.add_argument("--boundary-version", default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                        help="HSA boundary version (v6, v7, v8). Must match the run that produced weekly disease files.")
     return parser.parse_args()
 
 
 args = parse_args()
 NETWORK = args.network
 HSA_MODE = args.hsa_mode
+BOUNDARY_VERSION = args.boundary_version
 DISEASE_FOCUS = (args.disease_focus or _default_disease(NETWORK)).lower()
 SECONDARY_LABEL = _secondary_label(NETWORK)
 OUT_DIR = Path(args.out_dir).resolve()
@@ -52,8 +55,8 @@ print("="*80)
 
 # Step 1: Load disease data (adjusted counts)
 print("\n[1/5] Loading adjusted disease counts...")
-disease_diar = pd.read_csv(OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted.csv')
-disease_inf = pd.read_csv(OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted.csv')
+disease_diar = pd.read_csv(OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted_{BOUNDARY_VERSION}.csv')
+disease_inf = pd.read_csv(OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted_{BOUNDARY_VERSION}.csv')
 
 # Filter to modeling period (2022-06-27 to 2024-01-29)
 disease_diar['week_start'] = pd.to_datetime(disease_diar['week_start'])
@@ -219,7 +222,7 @@ print(f"    Infectious: {merged_data['infectious_count_adjusted'].sum():,.0f}")
 
 # Save merged dataset
 os.chdir(Path(__file__).resolve().parent)  # Back to main directory
-output_file = OUT_DIR / f'{NETWORK}_{HSA_MODE}_climate_disease_merged.csv'
+output_file = OUT_DIR / f'{NETWORK}_{HSA_MODE}_climate_disease_merged_{BOUNDARY_VERSION}.csv'
 merged_data.to_csv(output_file, index=False)
 
 print(f"\n  Saved: {output_file}")
@@ -254,7 +257,7 @@ for col in climate_cols:
     metadata.append({'category': category, 'variable': col, 'description': ''})
 
 metadata_df = pd.DataFrame(metadata)
-metadata_file = OUT_DIR / f'{NETWORK}_{HSA_MODE}_climate_disease_metadata.csv'
+metadata_file = OUT_DIR / f'{NETWORK}_{HSA_MODE}_climate_disease_metadata_{BOUNDARY_VERSION}.csv'
 metadata_df.to_csv(metadata_file, index=False)
 
 print(f"  Saved: {metadata_file}")

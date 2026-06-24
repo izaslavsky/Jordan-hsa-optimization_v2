@@ -38,6 +38,17 @@ Td_C, DTR_C, wind_speed_ms, SM1, SM2, hours_above_30C, heat_index_C`
 """),
 
 code("""\
+# ── BOUNDARY VERSION SELECTOR ──────────────────────────────────────────────
+# Choose which HSA boundary bundle to use for this analysis.
+# Must match a bundle produced by HSA_FINAL.ipynb.
+#   'v6'  — original greedy algorithm (no post-selection corrections)
+#   'v7'  — + anchor upgrade/demotion + major-orphan promotion
+#   'v8'  — + satellite bubble boundaries
+BOUNDARY_VERSION = "v7"   # change as needed
+# ────────────────────────────────────────────────────────────────────────────
+"""),
+
+code("""\
 # STEP 0 — Earth Engine init + config
 import ee, re, time, os
 from datetime import date, timedelta
@@ -56,9 +67,8 @@ DAY_END   = "2024-01-31"
 
 NETWORK   = "INF"
 MODE      = "footprint"
-PIPELINE_VERSION = os.environ.get("PIPELINE_VERSION", "v7")
 DATA_DIR  = os.environ.get("HSA_DATA_DIR", "data")
-OUT_DIR   = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{PIPELINE_VERSION}"))
+OUT_DIR   = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out"))
 
 TEST_MODE       = True    # set False for full run
 TEST_HSA_COUNT  = 2
@@ -78,7 +88,7 @@ code("""\
 # STEP 1 — Load HSA GeoJSON
 import geopandas as gpd, geemap, os
 
-GEOJSON_PATH = os.path.join(OUT_DIR, f"{NETWORK}_{MODE}_hsas_v2.geojson")
+GEOJSON_PATH = os.path.join(OUT_DIR, f"{NETWORK}_{MODE}_hsas_{BOUNDARY_VERSION}.geojson")
 gdf = gpd.read_file(GEOJSON_PATH).to_crs(4326)
 id_col = "FacilityName"
 gdf = gdf[~gdf.geometry.is_empty][[id_col, "geometry"]].copy()
@@ -380,8 +390,7 @@ import os
 import subprocess, sys
 
 BASE_DIR = Path(".")
-PIPELINE_VERSION = os.environ.get("PIPELINE_VERSION", "v7")
-OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{PIPELINE_VERSION}")))
+OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
 MODELING_DIR = OUT_DIR / "modeling"
 MODELING_DIR.mkdir(parents=True, exist_ok=True)
 print("Working directory:", BASE_DIR.resolve())
@@ -466,7 +475,18 @@ Evaluates climate's contribution at forecast horizons 1, 7, 14, 21, 28 days.
 Compares AR+Seasonal+Climate vs AR+Seasonal vs Climate-only (no AR) vs Seasonal-only.
 The climate-only row is the key early-warning system benchmark.
 
-**Input:** `{OUT_ROOT}/modeling/INF_footprint_daily_modeling_dataset.csv`
+**Input:** `{OUT_ROOT}/modeling/INF_footprint_daily_modeling_dataset_{BOUNDARY_VERSION}.csv`
+"""),
+
+code("""\
+# ── BOUNDARY VERSION SELECTOR ──────────────────────────────────────────────
+# Choose which HSA boundary bundle to use for this analysis.
+# Must match a bundle produced by HSA_FINAL.ipynb.
+#   'v6'  — original greedy algorithm (no post-selection corrections)
+#   'v7'  — + anchor upgrade/demotion + major-orphan promotion
+#   'v8'  — + satellite bubble boundaries
+BOUNDARY_VERSION = "v7"   # change as needed
+# ────────────────────────────────────────────────────────────────────────────
 """),
 
 code("""\
@@ -487,10 +507,9 @@ DLNM_DIR = Path("..") / "jordan-hsa-dlnm" / "dlnm"
 sys.path.insert(0, str(DLNM_DIR))
 from dlnm_crossbasis import ns_basis, build_crossbasis, cumulative_rr
 
-PIPELINE_VERSION = os.environ.get("PIPELINE_VERSION", "v7")
-OUT_ROOT = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{PIPELINE_VERSION}")))
-DATA_FILE = OUT_ROOT / "modeling" / "INF_footprint_daily_modeling_dataset.csv"
-OUT_DIR   = OUT_ROOT / "modeling" / "daily_models"
+OUT_ROOT = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
+DATA_FILE = OUT_ROOT / "modeling" / f"INF_footprint_daily_modeling_dataset_{BOUNDARY_VERSION}.csv"
+OUT_DIR   = OUT_ROOT / "modeling" / f"daily_models_{BOUNDARY_VERSION}"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 print("Libraries loaded")

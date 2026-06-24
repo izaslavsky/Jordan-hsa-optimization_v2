@@ -36,7 +36,7 @@ except Exception as e:
 warnings.filterwarnings('ignore')
 
 # Configuration defaults
-DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}"))
+DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out"))
 DEFAULT_RANDOM_SEED = 42
 
 parser = argparse.ArgumentParser(description="Comprehensive climate-health modeling")

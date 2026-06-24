@@ -15,12 +15,12 @@ import seaborn as sns
 
 # File paths
 BASE_PATH = Path(__file__).resolve().parent
-OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")))
+BOUNDARY_VERSION = os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7"))
+OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
 if not OUT_DIR.is_absolute():
     OUT_DIR = BASE_PATH / OUT_DIR
-GEOJSON_PATH = OUT_DIR / "INF_footprint_hsas_v2.geojson"
-ASSIGNMENTS_PATH = OUT_DIR / "facility_hsa_assignments.csv"
-ALLOCATED_PATIENTS_PATH = OUT_DIR / "hsa_allocated_patients_INF_footprint.csv"
+GEOJSON_PATH = OUT_DIR / f"INF_footprint_hsas_{BOUNDARY_VERSION}.geojson"
+ASSIGNMENTS_PATH = OUT_DIR / f"INF_footprint_facility_hsa_assignments_{BOUNDARY_VERSION}.csv"
 
 print("=" * 80)
 print("INFRASTRUCTURE-CLIMATE INTERACTION ANALYSIS")

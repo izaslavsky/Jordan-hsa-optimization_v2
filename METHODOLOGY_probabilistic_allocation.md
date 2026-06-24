@@ -111,14 +111,14 @@ This ensures consistency: **the same gravity model is used throughout** - both f
 ## Implementation
 
 **Files**:
-- `patient_allocation.py`: Core allocation module
-- `Patient_Allocation_Probabilistic.ipynb`: Interactive notebook
-- `allocate_patients_probabilistic()`: Convenience function
+- `population_allocation.py`: Core allocation module
+- `Population_Allocation_Probabilistic_v2.ipynb`: Interactive notebook
+- `allocate_population_probabilistic()`: Convenience function
 
 **Key Methods**:
 ```python
 # Step 1: Probabilistic allocation
-allocator = PatientAllocator(pop_raster, all_facilities, params)
+allocator = PopulationAllocator(pop_raster, all_facilities, params)
 facility_allocs = allocator.allocate_all_pixels_probabilistic_parallel()
 
 # Step 2: Facility → HSA aggregation

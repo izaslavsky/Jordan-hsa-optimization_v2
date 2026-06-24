@@ -9,8 +9,8 @@ Adjustments:
 2. For facilities in multiple HSAs: patients split proportionally by gravity model probabilities
 
 Output:
-- {NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted.csv: Adjusted primary disease counts
-- {NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted.csv: Adjusted secondary counts
+- {NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted_{BOUNDARY_VERSION}.csv: Adjusted primary disease counts
+- {NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted_{BOUNDARY_VERSION}.csv: Adjusted secondary counts
 """
 
 import pandas as pd
@@ -59,8 +59,10 @@ parser.add_argument("--week-start", default=os.environ.get("WEEK_START", DEFAULT
                     help=f"Start date for weeks (default: {DEFAULT_WEEK_START})")
 parser.add_argument("--week-end", default=os.environ.get("WEEK_END", DEFAULT_WEEK_END),
                     help=f"End date for weeks (default: {DEFAULT_WEEK_END})")
-parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")),
+parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")),
                     help="Pipeline output directory containing allocation files and receiving weekly counts")
+parser.add_argument("--boundary-version", default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                    help="HSA boundary version (v6, v7, v8). Must match the run that produced allocation files.")
 args = parser.parse_args()
 OUT_DIR = Path(args.out_dir)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -103,8 +105,8 @@ from pathlib import Path
 # Step 2: Load gravity model allocation details
 print("\n[2/7] Loading gravity model allocations...")
 # Try both naming conventions (old and new/probabilistic)
-alloc_path = OUT_DIR / f'{NETWORK}_{HSA_MODE}_allocation_details.csv'
-alloc_path_alt = OUT_DIR / f'pixel_allocations_{NETWORK}_{HSA_MODE}.csv'
+alloc_path = OUT_DIR / f'{NETWORK}_{HSA_MODE}_allocation_details_{args.boundary_version}.csv'
+alloc_path_alt = OUT_DIR / f'pixel_allocations_{NETWORK}_{HSA_MODE}_{args.boundary_version}.csv'
 
 if alloc_path.exists():
     print(f"  Using: {alloc_path}")
@@ -117,7 +119,7 @@ else:
         f"  - {alloc_path}\n"
         f"  - {alloc_path_alt}\n"
         "Run patient allocation for this network/mode to generate it "
-        "(e.g., Patient_Allocation_Probabilistic.ipynb or the old allocation notebook), "
+        "(e.g., Population_Allocation_Probabilistic_v2.ipynb or the old allocation notebook), "
         "or use generate_weekly_disease_counts.py for unadjusted counts."
     )
 alloc_details = pd.read_csv(alloc_path)
@@ -361,8 +363,8 @@ secondary_weekly['week_start_iso'] = secondary_weekly['week_start'].dt.strftime(
 
 # Step 7: Save outputs
 print("\n[8/8] Saving adjusted counts...")
-target_out = OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted.csv'
-secondary_out = OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted.csv'
+target_out = OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted_{args.boundary_version}.csv'
+secondary_out = OUT_DIR / f'{NETWORK}_{HSA_MODE}_weekly_{SECONDARY_LABEL}_adjusted_{args.boundary_version}.csv'
 target_weekly.to_csv(target_out, index=False)
 secondary_weekly.to_csv(secondary_out, index=False)
 

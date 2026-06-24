@@ -25,7 +25,7 @@ def parse_args():
     parser.add_argument("--network", default=os.environ.get("NETWORK", "INF"))
     parser.add_argument("--hsa-mode", default=os.environ.get("HSA_MODE", "footprint"))
     parser.add_argument("--disease-focus", default=os.environ.get("DISEASE_FOCUS"))
-    parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")))
+    parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
     return parser.parse_args()
 
 

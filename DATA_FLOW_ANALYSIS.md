@@ -124,7 +124,7 @@ Upload to Google Colab and run GEE_Climate_Features_by_Facilities.ipynb
 
 Each GeoJSON contains:
   - Columns: `healthfacility` (anchor name), `geometry` (circular polygon), `radius_km`, `total_patients`, `composite_score`, `climate_k`
-  - **Note**: HSAs are overlapping circles - patient allocation (Step 3) is required to prevent double-counting
+  - **Note**: HSAs are overlapping circles - population allocation (Step 3) is required to prevent double-counting
 
 **Command**:
 ```
@@ -136,8 +136,8 @@ jupyter notebook HSA_v6_FINAL.ipynb
 ---
 
 ### **STEP 3: Patient Allocation for Overlapping HSAs** ✅
-**Notebook**: `Patient_Allocation_for_Modeling.ipynb`
-**Script**: `patient_allocation.py` (called by notebook)
+**Notebook**: `Population_Allocation_Probabilistic_v2.ipynb`
+**Script**: `population_allocation.py` (called by notebook)
 
 **Purpose**: Assign each population pixel to exactly ONE facility to prevent double/triple counting in overlapping HSA regions
 
@@ -172,7 +172,7 @@ jupyter notebook HSA_v6_FINAL.ipynb
 
 **Command**:
 ```
-jupyter notebook Patient_Allocation_for_Modeling.ipynb
+jupyter notebook Population_Allocation_Probabilistic_v2.ipynb
 ```
 
 **Status**: ✅ Notebook and script ready to run after Step 2
@@ -250,13 +250,13 @@ See `SETUP_INSTRUCTIONS.md` for detailed setup.
 **Process**:
 
 **STEP 5a: Check Prerequisites**
-1. Verify all required files exist (HSA boundaries, patient allocations, climate CSVs, patient data)
+1. Verify all required files exist (HSA boundaries, population allocations, climate CSVs, patient data)
 2. Display file counts and sizes
 
 **STEP 5b: Generate Weekly Disease Counts**
 - Calls: `generate_weekly_disease_counts_adjusted.py` (or `generate_weekly_disease_counts.py`)
 - Process:
-  1. Load HSA geometries and patient allocations from Step 3
+  1. Load HSA geometries and population allocations from Step 3
   2. Calculate facility-to-HSA probabilities using gravity model
   3. Load patient visits and identify diarrheal diseases (from `general_category` field)
   4. Generate Monday-anchored weeks (84 weeks: 2022-06-27 to 2024-01-29)
@@ -344,7 +344,7 @@ python train_improved_models.py
 ### ✅ Complete and Ready to Use
 1. **STEP 2b**: Delineation comparison notebook (`compare_delineations.ipynb`)
    - Calls `compare_spatial_methods_v2.py`
-2. **STEP 3**: Patient allocation notebook and script (`Patient_Allocation_for_Modeling.ipynb`, `patient_allocation.py`)
+2. **STEP 3**: Population allocation notebook and script (`Population_Allocation_Probabilistic_v2.ipynb`, `population_allocation.py`)
 3. **STEP 5**: Modeling dataset orchestration notebook (`Generate_Modeling_Dataset.ipynb`)
    - Calls `generate_weekly_disease_counts_adjusted.py` and `prepare_ml_dataset.py`
 4. **STEP 6**: Climate-health modeling notebook (`run_climate_health_modeling.ipynb`)
@@ -364,7 +364,7 @@ python train_improved_models.py
 ```
 START → STEP 1 (GEE climate at facilities) → STEP 2 (HSA delineation, includes diagnosis counts)
   ↓
-STEP 3 (patient allocation - REQUIRED for disease modeling)
+STEP 3 (population allocation - REQUIRED for disease modeling)
   ↓
 STEP 4 (GEE weekly climate by HSA) → Download CSVs from Google Drive
   ↓
@@ -382,9 +382,9 @@ STEP 6 (ML modeling - future work) → RESULTS
 
 **Critical path for reviewers to understand methodology:**
 1. Read README.md and MODELING_METHODS.md (methodology)
-2. Examine scripts (patient_allocation.py, generate_*.py, prepare_*.py, train_*.py)
+2. Examine scripts (population_allocation.py, generate_*.py, prepare_*.py, train_*.py)
 3. See workflow diagram (this document)
-4. Optionally run Steps 1-3 with synthetic data to see HSA delineation and patient allocation
+4. Optionally run Steps 1-3 with synthetic data to see HSA delineation and population allocation
 5. GEE steps demonstrate climate extraction (reviewers may not have GEE access)
 
 ---
@@ -393,17 +393,17 @@ STEP 6 (ML modeling - future work) → RESULTS
 
 ### Minimal Reproducibility (Option A - Recommended)
 
-**Goal**: Understand the HSA delineation and patient allocation workflow without requiring GEE access
+**Goal**: Understand the HSA delineation and population allocation workflow without requiring GEE access
 
 **Steps**:
 1. **Examine synthetic data**: `data/SYNINF_patient_visits.csv`
 2. **Run GEE notebook** (or use provided climate file): Extract climate features
 3. **Run HSA optimization**: `jupyter notebook HSA_v6_FINAL.ipynb` (includes diagnosis counts)
-4. **Run patient allocation**: `jupyter notebook Patient_Allocation_for_Modeling.ipynb`
-5. **Review outputs**: HSA boundaries in `out/*.geojson` and patient allocations in `out/pixel_allocations_*.csv`
+4. **Run population allocation**: `jupyter notebook Population_Allocation_Probabilistic_v2.ipynb`
+5. **Review outputs**: HSA boundaries in `out/*.geojson` and population allocations in `out/pixel_allocations_*.csv`
 6. **Read methodology**: `README.md` and `CLIMATE_HEALTH_MODELING.md`
 
-**Result**: Understand HSA delineation, patient allocation to prevent double counting, and see how synthetic data flows through the system
+**Result**: Understand HSA delineation, population allocation to prevent double counting, and see how synthetic data flows through the system
 
 ### Full Reproducibility (Option B)
 
@@ -433,8 +433,8 @@ STEP 6 (ML modeling - future work) → RESULTS
 | `jor_ppp_2020_UNadj.tif` | Input | Data | ~40 MB | ✅ Yes | N/A (provided) |
 | `{NETWORK}_Facilities_Climate_Features_with_clusters.csv` | 1 | Output | ~10 KB | ⚠️ No | Run GEE notebook |
 | `{NETWORK}_{MODE}_hsas_v2.geojson` | 2 | Output | ~20 KB | ⚠️ No | Run `HSA_v6_FINAL.ipynb` |
-| `pixel_allocations_{NETWORK}_{MODE}.csv` | 3 | Output | ~7 MB | ⚠️ No | Run `Patient_Allocation_for_Modeling.ipynb` |
-| `hsa_allocated_patients_{NETWORK}_{MODE}.csv` | 3 | Output | ~5 KB | ⚠️ No | Run `Patient_Allocation_for_Modeling.ipynb` |
+| `pixel_allocations_{NETWORK}_{MODE}.csv` | 3 | Output | ~7 MB | ⚠️ No | Run `Population_Allocation_Probabilistic_v2.ipynb` |
+| `hsa_allocated_patients_{NETWORK}_{MODE}.csv` | 3 | Output | ~5 KB | ⚠️ No | Run `Population_Allocation_Probabilistic_v2.ipynb` |
 | `HSA_*_precip_lags.csv` (per HSA) | 4 | Output | varies | ⚠️ No | Run GEE notebook + download |
 | `{NETWORK}_{MODE}_weekly_{DISEASE}_adjusted.csv` | 5a | Output | ~50 KB | ⚠️ No | Run `Generate_Modeling_Dataset.ipynb` |
 | `{NETWORK}_{MODE}_modeling_dataset.csv` | 5b | Output | ~100 KB | ⚠️ No | Run `Generate_Modeling_Dataset.ipynb` |
@@ -447,6 +447,6 @@ STEP 6 (ML modeling - future work) → RESULTS
 **Next Action**:
 1. Run GEE climate extraction notebook (Step 1)
 2. Run `HSA_v6_FINAL.ipynb` for HSA delineation (includes diagnosis counts)
-3. Run `Patient_Allocation_for_Modeling.ipynb` to prevent double counting
+3. Run `Population_Allocation_Probabilistic_v2.ipynb` to prevent double counting
 4. Download climate CSVs from Google Drive to `out/DRIVE_CLIMATE_BY_HSA_DOWNLOAD/FINAL_HSA_CLIMATE/`
 5. Run `Generate_Modeling_Dataset.ipynb` to create complete modeling dataset

@@ -3,9 +3,9 @@
 This note describes the algorithmic changes implemented in:
 
 - `HSA_v7_FINAL.ipynb`
-- `Patient_Allocation_Probabilistic_v2.ipynb`
+- `Population_Allocation_Probabilistic_v2.ipynb`
 - `hsa_optimization.py`
-- `patient_allocation.py`
+- `population_allocation.py`
 
 It is written specifically as a comparison against the algorithm described in:
 
@@ -82,7 +82,7 @@ The modifications are guardrails around anchor identity and fallback behavior. T
 
 After greedy selection, v7 checks whether any selected anchor is a weak local representative that should be replaced by a stronger nearby facility.
 
-This handles cases where the greedy objective selected a small primary or comprehensive center, but a larger hospital or stronger facility lies inside the same local service area. The selected small facility is not discarded from the system; it is demoted from anchor status and remains a normal facility that can be assigned during patient allocation.
+This handles cases where the greedy objective selected a small primary or comprehensive center, but a larger hospital or stronger facility lies inside the same local service area. The selected small facility is not discarded from the system; it is demoted from anchor status and remains a normal facility that can be assigned during population allocation.
 
 ### Implementation
 
@@ -192,7 +192,7 @@ A facility is considered major if any of the following hold:
 - its volume is above the computed 80th percentile threshold;
 - its volume exceeds the configured absolute threshold.
 
-In patient allocation, where allocated population is available, the analogous major-facility rule also uses allocated population.
+In population allocation, where allocated population is available, the analogous major-facility rule also uses allocated population.
 
 ### Fallback plausibility rule
 
@@ -226,7 +226,7 @@ The final current INF-FOOTPRINT anchor set has 19 anchors, not the 17 anchors re
 
 The manuscript's allocation Step 2 says that facilities outside all HSA radii are assigned to the nearest HSA anchor. That rule is now too permissive for v7.
 
-In `Patient_Allocation_Probabilistic_v2.ipynb`, Case 2 has been changed from:
+In `Population_Allocation_Probabilistic_v2.ipynb`, Case 2 has been changed from:
 
 `outside all HSAs -> nearest anchor`
 
@@ -238,11 +238,11 @@ to:
 
 Implemented in:
 
-`patient_allocation.py`
+`population_allocation.py`
 
 Used by:
 
-`Patient_Allocation_Probabilistic_v2.ipynb`
+`Population_Allocation_Probabilistic_v2.ipynb`
 
 ### Current fallback parameters
 

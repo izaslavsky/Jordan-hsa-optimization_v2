@@ -46,9 +46,9 @@ The `dlnm/` subdirectory contains a Python implementation of distributed lag non
 
 Import with `from dlnm.dlnm_crossbasis import ns_basis, build_crossbasis, cumulative_rr`.
 
-### Improved patient allocation
+### Improved population allocation
 
-`Patient_Allocation_Probabilistic_v2.ipynb` (using updated `patient_allocation.py`) replaces the previous nearest-anchor fallback with an admissibility-limited fallback: facilities outside all HSA radii are assigned only to anchors within a distance limit derived from the anchor's service radius, with same-governorate preference for major facilities. Facilities that fail the admissibility check are reported rather than silently attached to a distant anchor.
+`Population_Allocation_Probabilistic_v2.ipynb` (using updated `population_allocation.py`) replaces the previous nearest-anchor fallback with an admissibility-limited fallback: facilities outside all HSA radii are assigned only to anchors within a distance limit derived from the anchor's service radius, with same-governorate preference for major facilities. Facilities that fail the admissibility check are reported rather than silently attached to a distant anchor.
 
 ---
 
@@ -71,8 +71,8 @@ jordan-hsa-optimization_v2/
 ├── dlnm/                            DLNM cross-basis module
 ├── out/                             Runtime outputs (gitignored except .gitkeep)
 ├── HSA_FINAL.ipynb                  HSA delineation (produces v6, v7, v8 bundles)
-├── Patient_Allocation_Probabilistic_v2.ipynb
-├── Patient_Allocation_for_Modeling.ipynb
+├── Population_Allocation_Probabilistic_v2.ipynb
+├── Population_Allocation_Probabilistic_v2.ipynb
 ├── GEE_local_Climate_Features_by_Facilities.ipynb
 ├── GEE_local_HSA_Daily_Climate.ipynb
 ├── GEE_local_HSA_Weekly_Climate_Lagged.ipynb
@@ -85,7 +85,7 @@ jordan-hsa-optimization_v2/
 ├── run_climate_models_daily.ipynb
 ├── compare_delineations.ipynb
 ├── hsa_optimization.py              Core algorithm (v6/v7/v8 via flags)
-├── patient_allocation.py            Probabilistic gravity allocation (v2 fallback)
+├── population_allocation.py            Probabilistic gravity allocation (v2 fallback)
 ├── generate_daily_disease_counts.py
 ├── prepare_daily_modeling_dataset.py
 ├── [... other scripts]
@@ -145,12 +145,12 @@ jupyter notebook HSA_FINAL.ipynb
 
 This runs all five optimization modes for each of the three algorithm variants (v6, v7, v8). Output files are written to `out/` with the pattern `{NETWORK}_{mode}_hsas_{variant}.geojson`. One full execution produces 15 boundary files (5 modes × 3 variants).
 
-### Step 3 — Patient allocation
+### Step 3 — Population allocation
 
 Set `BOUNDARY_VERSION` in the notebook, then run:
 
 ```bash
-jupyter notebook Patient_Allocation_Probabilistic_v2.ipynb
+jupyter notebook Population_Allocation_Probabilistic_v2.ipynb
 ```
 
 Repeat for each boundary version you want to use downstream.
@@ -235,7 +235,7 @@ Step 2  HSA_FINAL.ipynb
             │  └─────────────────────┘
             │
             ▼
-Step 3  Patient_Allocation_Probabilistic_v2  (BOUNDARY_VERSION = v6|v7|v8)
+Step 3  Population_Allocation_Probabilistic_v2  (BOUNDARY_VERSION = v6|v7|v8)
             │  → out/INF_footprint_facility_hsa_assignments_{version}.csv
             │
      ┌──────┴──────┐

@@ -240,7 +240,7 @@ def main():
     )
     parser.add_argument(
         "--out-dir",
-        default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")),
+        default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")),
         help="Pipeline output directory used when --output-csv is omitted",
     )
     args = parser.parse_args()

@@ -31,7 +31,8 @@ from scipy.interpolate import CubicSpline
 # ---------------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = BASE_DIR / "out/modeling/INF_footprint_modeling_dataset.csv"
-DEFAULT_FACILITIES = BASE_DIR / "data/INF_facility_coordinates.csv"
+_real_fac = BASE_DIR / "data/INF_facility_coordinates.csv"
+DEFAULT_FACILITIES = _real_fac if _real_fac.exists() else BASE_DIR / "data/SYNMODINF_facility_coordinates.csv"
 DEFAULT_OUTPUT_DIR = BASE_DIR / "out/dlnm"
 
 parser = argparse.ArgumentParser(description="Prepare DLNM dataset")

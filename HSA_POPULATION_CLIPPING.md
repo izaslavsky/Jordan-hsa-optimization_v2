@@ -89,7 +89,7 @@ The gap between the two shows excluded desert. For urban HSAs (Al-Basheer, AL-Za
 
 ## Downstream pipeline impact
 
-### 1. Patient Allocation (`Patient_Allocation_for_Modeling.ipynb`)
+### 1. Patient Allocation (`Population_Allocation_Probabilistic_v2.ipynb`)
 
 **No changes needed.** The allocator uses facility coordinates and a gravity model; it does not spatially intersect with HSA polygons. The GeoJSON geometry is loaded for reference only.
 
@@ -147,7 +147,7 @@ Action items before running:
 |---|---|
 | HSA generation (`HSA_v6_FINAL.ipynb`) | **Done** — constrained raster, min_patch, smooth_m=500 |
 | Maps (`hsa_mapping_working.py`) | **Done** — dashed circle + solid populated patches |
-| Patient allocation | None |
+| Population allocation | None |
 | GEE facility climate | None |
 | GEE HSA weekly climate | Validate `bestEffort`/`tileScale`; run single-HSA test first |
 | Compare delineations | Fix `compute_shape_metrics()` for MultiPolygon compactness |

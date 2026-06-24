@@ -15,8 +15,9 @@ from shapely.ops import unary_union
 import pandas as pd
 
 # Load the GeoJSON
-OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}")))
-geojson_path = OUT_DIR / "INF_footprint_hsas_v2.geojson"
+BOUNDARY_VERSION = os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7"))
+OUT_DIR = Path(os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")))
+geojson_path = OUT_DIR / f"INF_footprint_hsas_{BOUNDARY_VERSION}.geojson"
 
 with open(geojson_path, 'r') as f:
     data = json.load(f)

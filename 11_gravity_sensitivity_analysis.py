@@ -33,7 +33,7 @@ import json
 from itertools import product
 
 warnings.filterwarnings('ignore')
-DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}"))
+DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out"))
 OUTPUT_FILE_PREFIX = ""
 TEXT_RESULTS_DIR = None
 
@@ -79,11 +79,11 @@ def load_hsa_data(out_dir, network, hsa_mode):
     return pd.read_csv(hsa_file)
 
 
-def load_allocation_data(out_dir, network, hsa_mode, sample_size=10000):
+def load_allocation_data(out_dir, network, hsa_mode, sample_size=10000, boundary_version="v7"):
     """Load a sample of the allocation details for analysis."""
-    # Try both naming conventions (old and new/probabilistic)
-    alloc_file = out_dir / f'{network}_{hsa_mode}_allocation_details.csv'
-    alloc_file_alt = out_dir / f'pixel_allocations_{network}_{hsa_mode}.csv'
+    # Try both naming conventions (allocation_details preferred, pixel_allocations as fallback)
+    alloc_file = out_dir / f'{network}_{hsa_mode}_allocation_details_{boundary_version}.csv'
+    alloc_file_alt = out_dir / f'pixel_allocations_{network}_{hsa_mode}_{boundary_version}.csv'
 
     if alloc_file.exists():
         pass  # Use primary name

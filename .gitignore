@@ -16,8 +16,7 @@ build/
 # Track only the named notebooks below; ignore all others
 *.ipynb
 !HSA_FINAL.ipynb
-!Patient_Allocation_Probabilistic_v2.ipynb
-!Patient_Allocation_for_Modeling.ipynb
+!Population_Allocation_Probabilistic_v2.ipynb
 !GEE_Climate_Features_by_Facilities.ipynb
 !GEE_HSA_Weekly_Climate_Lagged.ipynb
 !GEE_local_Climate_Features_by_Facilities.ipynb

@@ -208,7 +208,7 @@ This will open Jupyter in your web browser at `http://localhost:8888`
 1. `HSA_v6_FINAL.ipynb` - Delineate HSA boundaries
 2. `GEE_Climate_Features_by_Facilities.ipynb` - Extract climate data by facility
 3. `GEE_HSA_Weekly_Climate_Lagged.ipynb` - Aggregate weekly climate features
-4. `Patient_Allocation_for_Modeling.ipynb` - Allocate population to avoid double counting
+4. `Population_Allocation_Probabilistic_v2.ipynb` - Allocate population to avoid double counting
 5. `Generate_Modeling_Dataset.ipynb` - Build `{NETWORK}_{MODE}_modeling_dataset.csv`
 6. `compare_delineations.ipynb` - Optional comparison across delineation modes
 7. `run_climate_health_modeling.ipynb` - Train and evaluate models

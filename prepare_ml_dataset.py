@@ -23,11 +23,11 @@ Data Leakage Prevention:
 
 Input:
     - Climate files: {OUT_DIR}/DRIVE_CLIMATE_BY_HSA_DOWNLOAD/FINAL_HSA_CLIMATE/*.csv
-    - Diagnosis data: {OUT_DIR}/{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted.csv
+    - Diagnosis data: {OUT_DIR}/{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted_{BOUNDARY_VERSION}.csv
 
 Output:
-    - {NETWORK}_{HSA_MODE}_modeling_dataset.csv: Complete merged dataset (may contain NaNs)
-    - {NETWORK}_{HSA_MODE}_modeling_dataset_metadata.json: Feature descriptions and summary
+    - {NETWORK}_{HSA_MODE}_modeling_dataset_{BOUNDARY_VERSION}.csv: Complete merged dataset (may contain NaNs)
+    - {NETWORK}_{HSA_MODE}_modeling_dataset_{BOUNDARY_VERSION}_metadata.json: Feature descriptions and summary
 
 Author: ML Modeling Team
 Date: 2025-01-13
@@ -48,8 +48,9 @@ warnings.filterwarnings('ignore')
 # ============================================================================
 
 # Default directories
-DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", f"out_{os.environ.get('PIPELINE_VERSION', 'v7')}"))
-DEFAULT_CLIMATE_DIR = str(Path(DEFAULT_PIPELINE_OUT_DIR) / "DRIVE_CLIMATE_BY_HSA_DOWNLOAD" / "FINAL_HSA_CLIMATE")
+DEFAULT_PIPELINE_OUT_DIR = os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out"))
+DEFAULT_BOUNDARY_VERSION = os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7"))
+DEFAULT_CLIMATE_DIR = str(Path(DEFAULT_PIPELINE_OUT_DIR) / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{DEFAULT_BOUNDARY_VERSION.upper()}" / "FINAL_HSA_CLIMATE")
 DEFAULT_OUTPUT_DIR = str(Path(DEFAULT_PIPELINE_OUT_DIR) / "modeling")
 
 # Default data cleaning thresholds
@@ -121,6 +122,8 @@ def parse_args():
                         help=f"Start date for valid data range (default: {DEFAULT_START_DATE})")
     parser.add_argument("--end-date", default=os.environ.get("END_DATE", DEFAULT_END_DATE),
                         help=f"End date for valid data range (default: {DEFAULT_END_DATE})")
+    parser.add_argument("--boundary-version", default=DEFAULT_BOUNDARY_VERSION,
+                        help="HSA boundary version (v6, v7, v8). Drives climate-dir default and output filename.")
     return parser.parse_args()
 
 
@@ -463,6 +466,10 @@ def main():
     HSA_MODE = args.hsa_mode
     DISEASE_FOCUS = args.disease_focus or _default_disease(NETWORK)
     TARGET_COL = f"{DISEASE_FOCUS}_count_adjusted"
+    # If --climate-dir was not explicitly provided, derive it from boundary_version
+    # so that the default follows the versioned directory layout.
+    if args.climate_dir == DEFAULT_CLIMATE_DIR and args.boundary_version != DEFAULT_BOUNDARY_VERSION:
+        args.climate_dir = str(Path(args.out_dir) / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{args.boundary_version.upper()}" / "FINAL_HSA_CLIMATE")
     CLIMATE_DIR = Path(args.climate_dir)
     OUTPUT_DIR = Path(args.output_dir)
     OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
@@ -472,7 +479,7 @@ def main():
     END_DATE = args.end_date
 
     diagnosis_root = Path(args.out_dir)
-    DIAGNOSIS_FILE = diagnosis_root / f"{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted.csv"
+    DIAGNOSIS_FILE = diagnosis_root / f"{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}_adjusted_{args.boundary_version}.csv"
     if not DIAGNOSIS_FILE.exists():
         fallback = diagnosis_root / f"{NETWORK}_{HSA_MODE}_weekly_{DISEASE_FOCUS}.csv"
         if fallback.exists():
@@ -719,7 +726,7 @@ def main():
     print("  Note: Train/validation/test splitting will be done during modeling phase")
 
     # Save full dataset
-    output_path = OUTPUT_DIR / f"{NETWORK}_{HSA_MODE}_modeling_dataset.csv"
+    output_path = OUTPUT_DIR / f"{NETWORK}_{HSA_MODE}_modeling_dataset_{args.boundary_version}.csv"
     final_df.to_csv(output_path, index=False)
     print(f"  [OK] Saved: {output_path}")
 
@@ -728,7 +735,7 @@ def main():
     # -------------------------------------------------------------------------
     print("\n[STEP 10] Creating metadata...")
 
-    metadata_path = OUTPUT_DIR / f"{NETWORK}_{HSA_MODE}_modeling_dataset_metadata.json"
+    metadata_path = OUTPUT_DIR / f"{NETWORK}_{HSA_MODE}_modeling_dataset_{args.boundary_version}_metadata.json"
     metadata = create_metadata(final_df, selected_features, metadata_path)
 
     # -------------------------------------------------------------------------
