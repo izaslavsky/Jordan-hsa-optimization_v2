@@ -65,9 +65,9 @@ def load_facility_coordinates(data_dir, network):
     return fac_df
 
 
-def load_hsa_data(out_dir, network, hsa_mode):
+def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load HSA modeling dataset."""
-    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset.csv'
+    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     return pd.read_csv(hsa_file)
 
 
@@ -250,7 +250,7 @@ def temporal_train_test_split(df, train_frac=0.75, val_frac=0.125):
     return train_df, test_df
 
 
-def run_spatial_autocorrelation_analysis(data_dir, out_dir, network, hsa_mode, target_col, output_dir):
+def run_spatial_autocorrelation_analysis(data_dir, out_dir, network, hsa_mode, target_col, output_dir, boundary_version="v7"):
     """Run comprehensive spatial autocorrelation analysis."""
     print("="*80)
     print("SPATIAL AUTOCORRELATION ANALYSIS")
@@ -258,7 +258,7 @@ def run_spatial_autocorrelation_analysis(data_dir, out_dir, network, hsa_mode, t
     print("="*80)
 
     # Load data
-    hsa_df = load_hsa_data(out_dir, network, hsa_mode)
+    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
     fac_df = load_facility_coordinates(data_dir, network)
 
     # Get HSA names/ids and their coordinates
@@ -509,6 +509,8 @@ def main():
     parser.add_argument('--out-dir', default=DEFAULT_PIPELINE_OUT_DIR)
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_spatial_autocorrelation'))
     parser.add_argument('--target-col', default=None)
+    parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                        help="HSA boundary version (v6, v7, v8)")
 
     args = parser.parse_args()
 
@@ -524,7 +526,7 @@ def main():
         args.target_col = 'diarrheal_count_adjusted' if args.network == 'INF' else 'hypertension_count_adjusted'
 
     results = run_spatial_autocorrelation_analysis(
-        data_dir, out_dir, args.network, args.hsa_mode, args.target_col, output_dir
+        data_dir, out_dir, args.network, args.hsa_mode, args.target_col, output_dir, args.boundary_version
     )
 
     print("\n" + "="*80)

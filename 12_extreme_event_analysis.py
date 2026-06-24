@@ -71,9 +71,9 @@ EXISTING_EXTREMES = [
 ]
 
 
-def load_modeling_data(out_dir, network, hsa_mode):
+def load_modeling_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load the modeling dataset."""
-    file_path = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset.csv'
+    file_path = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     df = pd.read_csv(file_path)
     print(f"Loaded {len(df)} rows, {len(df.columns)} columns")
     print(f"HSAs: {df['hsa_id'].nunique()}, Weeks: {df['week_number'].nunique()}")
@@ -613,6 +613,8 @@ def main():
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_extreme_events'))
     parser.add_argument('--text-output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'textresults'))
     parser.add_argument('--target-col', default=None)
+    parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                        help="HSA boundary version (v6, v7, v8)")
 
     args = parser.parse_args()
 
@@ -635,7 +637,7 @@ def main():
     print("="*80)
 
     # Load data
-    df = load_modeling_data(out_dir, args.network, args.hsa_mode)
+    df = load_modeling_data(out_dir, args.network, args.hsa_mode, args.boundary_version)
 
     # Create additional extreme indicators
     df = create_additional_extreme_indicators(df)

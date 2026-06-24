@@ -73,9 +73,9 @@ def load_facility_data(data_dir, network):
     return fac_df
 
 
-def load_hsa_data(out_dir, network, hsa_mode):
+def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load HSA modeling dataset."""
-    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset.csv'
+    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     return pd.read_csv(hsa_file)
 
 
@@ -423,6 +423,8 @@ def main():
     parser.add_argument('--text-output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'textresults'))
     parser.add_argument('--target-col', default=None)
     parser.add_argument('--n-simulations', type=int, default=5000)
+    parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
+                        help="HSA boundary version (v6, v7, v8)")
 
     args = parser.parse_args()
 
@@ -452,7 +454,7 @@ def main():
     sensitivity_df = run_sensitivity_analysis(fac_df, n_simulations=args.n_simulations)
 
     # Load HSA data for downstream analysis
-    hsa_df = load_hsa_data(out_dir, args.network, args.hsa_mode)
+    hsa_df = load_hsa_data(out_dir, args.network, args.hsa_mode, args.boundary_version)
 
     # Run downstream impact analysis
     bootstrap_df, baseline_r2, baseline_mae = analyze_downstream_impact(
