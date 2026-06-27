@@ -288,7 +288,7 @@ Weekly climate CSVs in the paper were generated with v6 boundaries. Daily climat
 
 **`rasterio` not found:** Required for population allocation (WorldPop pixel reading). Install via `pip install rasterio` or `conda install -c conda-forge rasterio`.
 
-**GEE export stuck:** GEE exports are asynchronous. Check the task status at https://code.earthengine.google.com/tasks. Large exports (daily, 2+ years, 19 HSAs) can take 60–120 minutes.
+**GEE export stuck:** GEE exports are asynchronous. Check task status at https://code.earthengine.google.com/tasks. Large exports (daily, 2+ years, 19 HSAs) can take 60–120 minutes. If all tasks show COMPLETED but the polling loop keeps running, Drive likely renamed one file to `filename (1).csv` from a prior run — the notebooks detect this after 10 stall polls and fall back to a fuzzy name search automatically.
 
 **`infra_quality` missing for new HSAs:** `data/hsa_metadata.csv` covers the v6 anchor set (17 HSAs). HSAs added in v7 (7 new anchors) have NaN `infra_quality`. Add JMP sanitation scores for those HSAs to use them in the DLNM effect-modifier analysis.
 

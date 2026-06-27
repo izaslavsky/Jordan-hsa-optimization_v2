@@ -20,8 +20,8 @@ This guide will help you set up your environment and run the HSA optimization an
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/izaslavsky/jordan-hsa-optimization.git
-cd jordan-hsa-optimization
+git clone https://github.com/izaslavsky/jordan-hsa-optimization_v2.git
+cd jordan-hsa-optimization_v2
 ```
 
 ### 2. Create Virtual Environment (Recommended)
@@ -52,8 +52,9 @@ pip install -r requirements.txt
 Google Earth Engine (GEE) is required for all climate extraction notebooks.
 
 You must complete this step **before running**:
-- `GEE_Climate_Features_by_Facilities.ipynb`
-- `GEE_HSA_Weekly_Climate_Lagged.ipynb`
+- `GEE_local_Climate_Features_by_Facilities.ipynb`
+- `GEE_local_HSA_Weekly_Climate_Lagged.ipynb`
+- `GEE_local_HSA_Daily_Climate.ipynb`
 
 #### Step 4.1 — Create a Google Earth Engine Account
 
@@ -201,17 +202,25 @@ This will open Jupyter in your web browser at `http://localhost:8888`
 ### Notebook Execution Order
 
 **For HSA optimization only:**
-1. Open `HSA_v6_FINAL.ipynb`
+1. Open `HSA_FINAL.ipynb`
 2. Run all cells sequentially (Cell → Run All)
+3. Produces v6, v7, and v8 boundary bundles in a single run
 
-**For complete climate-health workflow:**
-1. `HSA_v6_FINAL.ipynb` - Delineate HSA boundaries
-2. `GEE_Climate_Features_by_Facilities.ipynb` - Extract climate data by facility
-3. `GEE_HSA_Weekly_Climate_Lagged.ipynb` - Aggregate weekly climate features
-4. `Population_Allocation_Probabilistic_v2.ipynb` - Allocate population to avoid double counting
-5. `Generate_Modeling_Dataset.ipynb` - Build `{NETWORK}_{MODE}_modeling_dataset.csv`
-6. `compare_delineations.ipynb` - Optional comparison across delineation modes
-7. `run_climate_health_modeling.ipynb` - Train and evaluate models
+**For the weekly climate-health workflow:**
+1. `GEE_local_Climate_Features_by_Facilities.ipynb` — extract climate by facility (required by HSA_FINAL)
+2. `HSA_FINAL.ipynb` — delineate boundaries (all three variants: v6, v7, v8)
+3. `Population_Allocation_Probabilistic_v2.ipynb` — assign population to HSAs; set `BOUNDARY_VERSION`
+4. `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` — aggregate weekly climate per HSA polygon
+5. `Generate_Modeling_Dataset.ipynb` — build `{NETWORK}_{MODE}_modeling_dataset_{VERSION}.csv`
+6. `run_climate_health_modeling.ipynb` — train and evaluate weekly models
+
+**For the daily DLNM pipeline (runs in parallel with steps 4–6 above):**
+1. `GEE_local_HSA_Daily_Climate.ipynb` — aggregate daily climate per HSA polygon
+2. Run `generate_daily_disease_counts.py` then `prepare_daily_modeling_dataset.py`
+3. `run_climate_models_daily.ipynb` — quasi-Poisson DLNM (Track A) and predictive OLS (Track B)
+
+**Optional:**
+- `compare_delineations.ipynb` — compare v6/v7/v8 boundaries and model coefficients
 
 ### Expected Runtime
 
@@ -246,16 +255,18 @@ districts.plot()
 
 ### Synthetic Patient Data and Facility Coordinates
 
-Files use `SYNINF_` prefix for infectious diseases and `SYNNCD_` prefix for non-communicable diseases:
+Files use the `SYNMOD` prefix, followed by `INF` (infectious diseases) or `NCD` (non-communicable diseases):
 
-- `data/SYNINF_facility_coordinates.csv` - Infectious disease facilities (lat/lon)
-- `data/SYNNCD_facility_coordinates.csv` - Non-communicable disease facilities (lat/lon)
-- `data/SYNINF_patient_visits.csv` - Synthetic infectious disease visits
-- `data/SYNNCD_patient_visits.csv` - Synthetic non-communicable disease visits
-- `data/SYNINF_groups_of_diagnoses.csv` - ICD code groupings for infectious diseases
-- `data/SYNNCD_groups_of_diagnoses.csv` - ICD code groupings for non-communicable diseases
+- `data/SYNMODINF_facility_coordinates.csv` — INF facility locations (lat/lon)
+- `data/SYNMODNCD_facility_coordinates.csv` — NCD facility locations (lat/lon)
+- `data/SYNMODINF_patient_visits.csv` — synthetic INF patient visits (2019–2024)
+- `data/SYNMODNCD_patient_visits.csv` — synthetic NCD patient visits
+- `data/SYNMODINF_groups_of_diagnoses.csv` — ICD code groupings for INF network
+- `data/SYNMODNCD_groups_of_diagnoses.csv` — ICD code groupings for NCD network
 
-**Privacy Note**: All patient data is 100% synthetic. No real patient information is included.
+Real patient data files (`INF_patient_visits.csv`, `NCD_patient_visits.csv`) are blocked by `.gitignore` and never committed to this repository.
+
+**Privacy Note**: SYNMOD files preserve temporal structure, seasonal patterns, and diagnosis distributions but contain no real patient records.
 
 ---
 
@@ -323,6 +334,14 @@ earthengine authenticate
 - Refresh Drive UI or recheck after several minutes
 
 ---
+
+**Issue 7: Polling loop stalls after all GEE tasks complete but one file never appears**
+
+**Explanation**: Google Drive occasionally renames a file to `filename (1).csv` when a previous run left a file with the same name. The exact filename match fails even though the export succeeded.
+
+**Resolution**: The weekly and daily GEE notebooks detect this automatically. After 10 polling intervals with all tasks COMPLETED but files still missing, the loop searches Drive for fuzzy-matched names (same stem, same extension) and downloads under the canonical filename. No manual action is required. If the loop raises `RuntimeError: stall after N polls`, check your Drive folder for `(1)` duplicates and delete the older copy.
+
+---
 ## Verifying Installation
 
 Run this Python script to verify your environment:
@@ -372,10 +391,10 @@ Expected output should show no errors and display package versions.
 ## Next Steps
 
 After successful setup:
-1. Read through `HSA_v6_FINAL.ipynb` to understand the optimization workflow
-2. Modify parameters in the notebook to test different scenarios
+1. Read through `HSA_FINAL.ipynb` to understand the three-variant optimization workflow
+2. Set `BOUNDARY_VERSION = "v7"` in downstream notebooks for the primary modeling track
 3. Run climate extraction notebooks if you have access to Google Earth Engine
-4. Refer to the main `README.md` for methodology details and citation information
+4. See `PIPELINE_GUIDE.md` for step-by-step instructions across all network/mode/version combinations
 
 ## Getting Help
 
@@ -386,4 +405,4 @@ If you encounter issues not covered here:
 
 ---
 
-**Last Updated**: December 2025
+**Last Updated**: June 2026

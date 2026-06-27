@@ -129,9 +129,16 @@ print(f"  Loaded {len(alloc_details):,} population pixels with facility assignme
 # Use FACILITY_DATA env var if set, otherwise try non-synthetic file first
 fac_file = os.environ.get('FACILITY_DATA')
 if not fac_file:
-    fac_file = f'data/{NETWORK}_facility_coordinates.csv'
-    if not Path(fac_file).exists():
-        fac_file = f'data/SYN{NETWORK}_facility_coordinates.csv'
+    for _candidate in [
+        f'data/{NETWORK}_facility_coordinates.csv',
+        f'data/SYN{NETWORK}_facility_coordinates.csv',
+        f'data/SYNMOD{NETWORK}_facility_coordinates.csv',
+    ]:
+        if Path(_candidate).exists():
+            fac_file = _candidate
+            break
+    if not fac_file:
+        raise FileNotFoundError(f"No facility coordinates file found for network '{NETWORK}' in data/")
 print(f"  Using facilities: {fac_file}")
 facilities_df = pd.read_csv(fac_file, encoding='utf-8-sig')
 facilities_df['healthfacility'] = facilities_df['healthfacility'].str.replace('\xa0', ' ').str.replace(r'\s+', ' ', regex=True).str.strip()
@@ -247,11 +254,16 @@ print("\n[5/7] Loading patient data...")
 # Use PATIENT_DATA env var if set, otherwise try non-synthetic file first, then synthetic
 pat_file = os.environ.get('PATIENT_DATA')
 if not pat_file:
-    pat_file = f'data/{NETWORK}_patient_visits.csv'
-    if not Path(pat_file).exists():
-        pat_file = f'data/SYN{NETWORK}_patient_visits.csv'
-if not Path(pat_file).exists():
-    raise FileNotFoundError(f"Patient data file not found: {pat_file}")
+    for _candidate in [
+        f'data/{NETWORK}_patient_visits.csv',
+        f'data/SYN{NETWORK}_patient_visits.csv',
+        f'data/SYNMOD{NETWORK}_patient_visits.csv',
+    ]:
+        if Path(_candidate).exists():
+            pat_file = _candidate
+            break
+if not pat_file or not Path(pat_file).exists():
+    raise FileNotFoundError(f"No patient visits file found for network '{NETWORK}' in data/")
 print(f"  Using: {pat_file}")
 patients = pd.read_csv(pat_file, encoding='utf-8-sig')
 patients['date'] = pd.to_datetime(patients['datetimediagnosisentered'])

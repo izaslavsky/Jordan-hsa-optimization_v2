@@ -72,7 +72,6 @@ jordan-hsa-optimization_v2/
 ├── out/                             Runtime outputs (gitignored except .gitkeep)
 ├── HSA_FINAL.ipynb                  HSA delineation (produces v6, v7, v8 bundles)
 ├── Population_Allocation_Probabilistic_v2.ipynb
-├── Population_Allocation_Probabilistic_v2.ipynb
 ├── GEE_local_Climate_Features_by_Facilities.ipynb
 ├── GEE_local_HSA_Daily_Climate.ipynb
 ├── GEE_local_HSA_Weekly_Climate_Lagged.ipynb
@@ -264,9 +263,9 @@ _modeling.ipynb     Track A: DLNM (explanatory)
 
 ## Climate data note
 
-Weekly climate CSVs (CHIRPS + ERA5-Land + TerraClimate, one file per HSA per variable) are available for **v6 boundaries** only. For other boundary versions, re-run `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` or the chunked variant.
+Weekly climate CSVs (CHIRPS + ERA5-Land + TerraClimate, one file per HSA per variable) have been computed for **v6, v7, and v8 boundaries**. For a new boundary version or network, re-run `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` or the chunked variant.
 
-Daily climate CSVs (CHIRPS + ERA5-Land hourly aggregated to daily) are available for **v7 boundaries** only. For v6 or v8, re-run `GEE_local_HSA_Daily_Climate.ipynb`.
+Daily climate CSVs (CHIRPS + ERA5-Land hourly aggregated to daily) have been computed for **v7 boundaries**. For v6 or v8, re-run `GEE_local_HSA_Daily_Climate.ipynb`.
 
 ---
 
