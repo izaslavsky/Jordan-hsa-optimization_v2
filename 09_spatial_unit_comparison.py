@@ -65,7 +65,16 @@ CLIMATE_FEATURES = [
 
 def load_facility_data(data_dir, network):
     """Load facility coordinates and climate data."""
-    fac_file = data_dir / f'{network}_facility_coordinates.csv'
+    fac_file = next(
+        (data_dir / f for f in [
+            f'{network}_facility_coordinates.csv',
+            f'SYN{network}_facility_coordinates.csv',
+            f'SYNMOD{network}_facility_coordinates.csv',
+        ] if (data_dir / f).exists()),
+        None,
+    )
+    if fac_file is None:
+        raise FileNotFoundError(f"No facility coordinates file found for network '{network}' in {data_dir}")
     fac_df = pd.read_csv(fac_file)
 
     # Rename columns if needed

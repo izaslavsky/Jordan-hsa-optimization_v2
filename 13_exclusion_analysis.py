@@ -94,7 +94,16 @@ def load_data() -> Tuple[pd.DataFrame, pd.DataFrame, gpd.GeoDataFrame]:
     print(f"    Total population: {allocations['population'].sum():,.0f}")
 
     # Load facility coordinates
-    fac_path = DATA_DIR / f"{NETWORK}_facility_coordinates.csv"
+    fac_path = next(
+        (DATA_DIR / f for f in [
+            f'{NETWORK}_facility_coordinates.csv',
+            f'SYN{NETWORK}_facility_coordinates.csv',
+            f'SYNMOD{NETWORK}_facility_coordinates.csv',
+        ] if (DATA_DIR / f).exists()),
+        None,
+    )
+    if fac_path is None:
+        raise FileNotFoundError(f"No facility coordinates file found for network '{NETWORK}' in {DATA_DIR}")
     print(f"  Loading facilities from {fac_path}")
     facilities = pd.read_csv(fac_path)
 
