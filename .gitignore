@@ -77,5 +77,8 @@ out/
 # Webinars directory (slide decks, presentation notes — not part of public repo)
 webinars/
 
+# Manuscript and generated figures — not part of the public codebase
+manuscript/
+
 # Pipeline runner artifacts — executed notebooks and logs, populated at runtime
 _pipeline_runs/
