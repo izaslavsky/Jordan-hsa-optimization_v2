@@ -46,7 +46,10 @@ Thumbs.db
 client_secrets.json
 
 # Large raster files — download from WorldPop (see README)
+# The two Jordan WorldPop grids are tracked directly; all other tifs are excluded.
 *.tif
+!data/jor_ppp_2020_UNadj.tif
+!data/jor_ppp_2020_constrained.tif
 
 # ── Publication data rules ────────────────────────────────────────────────────
 # Only SYNMOD* files belong in this repo.
