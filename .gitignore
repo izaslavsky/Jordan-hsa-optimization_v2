@@ -17,8 +17,6 @@ build/
 *.ipynb
 !HSA_FINAL.ipynb
 !Population_Allocation_Probabilistic_v2.ipynb
-!GEE_Climate_Features_by_Facilities.ipynb
-!GEE_HSA_Weekly_Climate_Lagged.ipynb
 !GEE_local_Climate_Features_by_Facilities.ipynb
 !GEE_local_HSA_Daily_Climate.ipynb
 !GEE_local_HSA_Weekly_Climate_Lagged.ipynb
@@ -64,3 +62,17 @@ out/
 # Misc artefacts
 *.zip
 *.xlsx
+
+# ── Documentation rules ───────────────────────────────────────────────────────
+# Public-facing documents only; all others are internal notes.
+*.md
+!README.md
+!DATA_FLOW_ANALYSIS.md
+!SETUP_INSTRUCTIONS.md
+!PIPELINE_GUIDE.md
+
+# Webinars directory (slide decks, presentation notes — not part of public repo)
+webinars/
+
+# Pipeline runner artifacts — executed notebooks and logs, populated at runtime
+_pipeline_runs/

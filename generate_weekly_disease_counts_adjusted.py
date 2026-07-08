@@ -23,10 +23,6 @@ from pathlib import Path
 import argparse
 from scipy.spatial import cKDTree
 
-# Default date configuration (can be overridden via CLI)
-DEFAULT_WEEK_START = "2019-01-07"
-DEFAULT_WEEK_END = "2024-01-29"
-
 def _parse_network_mode(hsa_geojson_path):
     stem = Path(hsa_geojson_path).stem
     # Expected patterns:
@@ -43,8 +39,16 @@ def _parse_network_mode(hsa_geojson_path):
             network = parts[0]
             mode = "_".join(parts[1:hsas_idx])
             return network, mode
-    # Fallback to env or defaults
-    return os.environ.get("NETWORK", "INF"), os.environ.get("HSA_MODE", "footprint")
+    # Fallback to env vars; raise if neither is available
+    network  = os.environ.get("NETWORK")
+    hsa_mode = os.environ.get("HSA_MODE")
+    if not network or not hsa_mode:
+        raise ValueError(
+            f"Cannot parse NETWORK/HSA_MODE from GeoJSON path '{hsa_geojson_path}'. "
+            "Pass a properly named GeoJSON ({NETWORK}_{MODE}_hsas*.geojson) "
+            "or set NETWORK and HSA_MODE environment variables."
+        )
+    return network, hsa_mode
 
 def _default_disease(network):
     return "diarrheal" if network in ("INF", "SYNINF") else "hypertension"
@@ -55,15 +59,17 @@ def _secondary_label(network):
 parser = argparse.ArgumentParser(description="Generate adjusted weekly disease counts")
 parser.add_argument("hsa_geojson", nargs="?", default=None)
 parser.add_argument("--disease", default=None, help="Primary disease focus (e.g., diarrheal, hypertension)")
-parser.add_argument("--week-start", default=os.environ.get("WEEK_START", DEFAULT_WEEK_START),
-                    help=f"Start date for weeks (default: {DEFAULT_WEEK_START})")
-parser.add_argument("--week-end", default=os.environ.get("WEEK_END", DEFAULT_WEEK_END),
-                    help=f"End date for weeks (default: {DEFAULT_WEEK_END})")
+parser.add_argument("--week-start", default=os.environ.get("WEEK_START"),
+                    help="Start date for weekly bins (YYYY-MM-DD). Required.")
+parser.add_argument("--week-end", default=os.environ.get("WEEK_END"),
+                    help="End date for weekly bins (YYYY-MM-DD). Required.")
 parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", "out")),
                     help="Pipeline output directory containing allocation files and receiving weekly counts")
 parser.add_argument("--boundary-version", default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
                     help="HSA boundary version (v6, v7, v8). Must match the run that produced allocation files.")
 args = parser.parse_args()
+if not args.week_start or not args.week_end:
+    parser.error("--week-start and --week-end are required (set in notebook or via WEEK_START/WEEK_END env vars)")
 OUT_DIR = Path(args.out_dir)
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 

@@ -87,24 +87,27 @@ print("✓ Earth Engine authentication successful")
 EOF
 ```
 
-#### Step 4.3 — Project-based Initialization (Used in Notebooks)
+#### Step 4.3 — Set your GEE project ID in each notebook
 
-Notebooks initialize Earth Engine using an explicit project ID:
+Each GEE notebook has a `PROJECT` (or `GEE_PROJECT`) variable near the top of its configuration cell. Replace the placeholder with your own GEE project ID before running:
 
+```python
+PROJECT = "ee-your-project-id"   # replace this
 ```
-ee.Initialize(project="ee-<your-project-id>")
-```
-If authentication fails, re-run:
 
-```
+The four notebooks that need this change:
+- `GEE_local_Climate_Features_by_Facilities.ipynb` — variable named `GEE_PROJECT`
+- `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` — variable named `PROJECT`
+- `GEE_local_HSA_Weekly_Climate_Lagged_chunked.ipynb` — variable named `PROJECT`
+- `GEE_local_HSA_Daily_Climate.ipynb` — variable named `PROJECT`
+
+If initialization fails, re-authenticate:
+
+```bash
 earthengine authenticate
 ```
 
-**Important Notes**
-
-* Authentication is per machine (or per Colab runtime)
-* Credentials expire occasionally; re-authenticate if errors appear
-* GEE processing happens server-side; local CPU/RAM limits are not the bottleneck
+**Notes**: authentication is per machine; credentials expire occasionally; GEE processing runs server-side.
 
 ### 5. Google Drive API Authentication (Required for Automated Downloads)
 
@@ -191,6 +194,36 @@ Local execution **requires OAuth**; Colab does not.
 ---
 ## Running the Notebooks
 
+### Automated Pipeline Runner (Recommended)
+
+`run_pipeline.py` automates all six local-computation steps, but the GEE climate extraction notebooks must be interleaved manually because weekly and daily climate aggregation requires HSA boundaries that are only produced by Step 1. The workflow has two phases:
+
+**Phase 1** — after running `GEE_local_Climate_Features_by_Facilities.ipynb`:
+```bash
+python run_pipeline.py --network INF --hsa-mode footprint \
+    --boundary-version v7 --disease-focus diarrheal \
+    --study-start 2022-07-01 --study-end 2024-01-31 \
+    --week-start 2019-01-07 --week-end 2024-01-29 \
+    --ml-start-date 2022-06-27 --ml-end-date 2024-01-29 \
+    --only-steps 1,2
+```
+
+**Then** run `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` and `GEE_local_HSA_Daily_Climate.ipynb` using the boundaries just produced.
+
+**Phase 2** — after both HSA climate extractions are complete:
+```bash
+python run_pipeline.py --network INF --hsa-mode footprint \
+    --boundary-version v7 --disease-focus diarrheal \
+    --study-start 2022-07-01 --study-end 2024-01-31 \
+    --week-start 2019-01-07 --week-end 2024-01-29 \
+    --ml-start-date 2022-06-27 --ml-end-date 2024-01-29 \
+    --only-steps 3,4,5,6
+```
+
+The script checks all required packages before starting, injects parameters into notebook config cells, sets a fixed random seed (`PYTHONHASHSEED=42`) for reproducibility, and saves executed notebooks to `_pipeline_runs/` for debugging. See `PIPELINE_GUIDE.md` for the full reference.
+
+### Manual Execution
+
 ### Start Jupyter Notebook Server
 
 ```bash
@@ -216,7 +249,7 @@ This will open Jupyter in your web browser at `http://localhost:8888`
 
 **For the daily DLNM pipeline (runs in parallel with steps 4–6 above):**
 1. `GEE_local_HSA_Daily_Climate.ipynb` — aggregate daily climate per HSA polygon
-2. Run `generate_daily_disease_counts.py` then `prepare_daily_modeling_dataset.py`
+2. `Generate_Daily_Modeling_Dataset.ipynb` — calls `generate_daily_disease_counts.py` and `prepare_daily_modeling_dataset.py` internally
 3. `run_climate_models_daily.ipynb` — quasi-Poisson DLNM (Track A) and predictive OLS (Track B)
 
 **Optional:**
@@ -267,6 +300,23 @@ Files use the `SYNMOD` prefix, followed by `INF` (infectious diseases) or `NCD` 
 Real patient data files (`INF_patient_visits.csv`, `NCD_patient_visits.csv`) are blocked by `.gitignore` and never committed to this repository.
 
 **Privacy Note**: SYNMOD files preserve temporal structure, seasonal patterns, and diagnosis distributions but contain no real patient records.
+
+`data/hsa_metadata.csv` is generated automatically at the end of `HSA_FINAL.ipynb` (via `generate_hsa_metadata.py`). It joins facility coordinates with governorate-level JMP 2025 sanitation scores from `data/jmp_2025_jordan_governorate.csv`. The key modeling column is `infra_quality` (governorate JMP safely-managed sanitation rate / 100). This file is only used by the daily DLNM pipeline (Track A in `run_climate_models_daily.ipynb`); the weekly modeling pipeline does not use it. To regenerate manually: `python generate_hsa_metadata.py --network INF`.
+
+**Retrieving JMP 2025 Jordan data**: The values in `data/jmp_2025_jordan_governorate.csv` come from the WHO/UNICEF Joint Monitoring Programme for Water Supply and Sanitation (JMP). To verify or update them:
+
+1. Go to https://washdata.org/data/country/JOR
+2. Click **Download data** to get the Jordan country Excel file (`JMP_2025_JOR_Jordan_0.xlsx`)
+3. Open the file and locate the sheet with 2022 subnational estimates for "safely managed sanitation" and "safely managed water", broken down by urban/rural
+4. For each of Jordan's 12 governorates, compute the population-weighted average: `urban_fraction × jmp_urban_pct + (1 − urban_fraction) × jmp_rural_pct`, where `urban_fraction` comes from the Jordan Department of Statistics Population and Housing Census 2015 (available at http://www.dos.gov.jo)
+5. Enter the results in `data/jmp_2025_jordan_governorate.csv`, updating `jmp_san_pct_2022` and `jmp_wat_pct_2022` columns; update the `source_note` column to reflect the new data year
+6. Re-run `python generate_hsa_metadata.py --network INF` to refresh `data/hsa_metadata.csv`
+
+The Ma'an governorate value in the current file is marked as estimated. It should be replaced with the value computed from the JMP file using the steps above.
+
+`data/jordan_islamic_calendar.csv` contains Ramadan periods and Eid al-Fitr/Eid al-Adha date ranges for 2022-2024, read by `prepare_daily_modeling_dataset.py` to build calendar indicator variables. This file is used only by the daily DLNM pipeline. To extend the study period, add rows following the same format (`event`, `start_date`, `end_date`, `note`). Ramadan and Eid dates for any year can be obtained from the Hijri calendar (e.g., timeanddate.com or the Islamic Society of North America calendar).
+
+`data/reporting_gaps.csv` lists individual dates where the HMIS system recorded zero visits across all diagnoses — confirmed data gaps rather than true disease-free days. `generate_daily_disease_counts.py` reads this file and flags the corresponding rows rather than treating them as zeros. To update, add rows with the date in `YYYY-MM-DD` format and a brief note. This file is also used only by the daily DLNM pipeline.
 
 ---
 
@@ -401,7 +451,7 @@ After successful setup:
 If you encounter issues not covered here:
 - **Check documentation**: Read notebook markdown cells for parameter descriptions
 - **GitHub Issues**: [Open an issue](https://github.com/izaslavsky/HSA_algo_public/issues)
-- **Email**: [Contact information]
+- **Email**: ilya.zaslavsky@gmail.com
 
 ---
 

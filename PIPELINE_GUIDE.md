@@ -4,6 +4,82 @@ Step-by-step instructions for running the full pipeline across networks, HSA mod
 
 ---
 
+## Automated Pipeline Runner
+
+`run_pipeline.py` automates all six local-computation steps. The three GEE extraction notebooks still require manual execution (Earth Engine auth, Google Drive polling), but there is a dependency between them and the local steps that requires the run to be split into two phases.
+
+### Why two phases?
+
+Weekly and daily climate aggregation (GEE Steps B and C) operate on HSA *polygons*, which do not exist until Step 1 (HSA delineation) has run. The correct order is:
+
+```
+GEE Step A  ──►  pipeline Steps 1–2  ──►  GEE Steps B & C  ──►  pipeline Steps 3–6
+(facility        (delineate HSAs,          (aggregate climate      (datasets +
+ climate,         allocate pop)             per HSA polygon)        models)
+ no HSAs
+ needed)
+```
+
+### Phase 1: delineate boundaries
+
+Run GEE Step A first (`GEE_local_Climate_Features_by_Facilities.ipynb` — needs only facility coordinates, no HSA boundaries). Then:
+
+```bash
+python run_pipeline.py \
+    --network INF --hsa-mode footprint \
+    --boundary-version v7 --disease-focus diarrheal \
+    --study-start 2022-07-01 --study-end 2024-01-31 \
+    --week-start 2019-01-07 --week-end 2024-01-29 \
+    --ml-start-date 2022-06-27 --ml-end-date 2024-01-29 \
+    --only-steps 1,2
+```
+
+This produces `out/INF_footprint_hsas_v7.geojson` (and v6/v8) plus the population allocation tables.
+
+### Phase 2: run models
+
+After running GEE Steps B (`GEE_local_HSA_Weekly_Climate_Lagged.ipynb`) and C (`GEE_local_HSA_Daily_Climate.ipynb`) using the boundaries from Phase 1:
+
+```bash
+python run_pipeline.py \
+    --network INF --hsa-mode footprint \
+    --boundary-version v7 --disease-focus diarrheal \
+    --study-start 2022-07-01 --study-end 2024-01-31 \
+    --week-start 2019-01-07 --week-end 2024-01-29 \
+    --ml-start-date 2022-06-27 --ml-end-date 2024-01-29 \
+    --only-steps 3,4,5,6
+```
+
+### Date parameters explained
+
+Three separate date ranges appear in every `run_pipeline.py` invocation, each driven by a different data constraint:
+
+| Parameter | Example | Controls |
+|-----------|---------|----------|
+| `--week-start` / `--week-end` | 2019-01-07 — 2024-01-29 | Weekly disease count aggregation |
+| `--ml-start-date` / `--ml-end-date` | 2022-06-27 — 2024-01-29 | Weekly ML modeling window |
+| `--study-start` / `--study-end` | 2022-07-01 — 2024-01-31 | Daily DLNM analysis window |
+
+**`--week-start` / `--week-end`** span the full HMIS patient visit history. Disease counts are aggregated into ISO weeks across this entire range regardless of whether climate data exists. The period begins in 2019 because that is when the HMIS records start.
+
+**`--ml-start-date` / `--ml-end-date`** define the subset of weeks where both disease counts *and* GEE climate features are available. Climate extraction by HSA polygon only covers from mid-2022 onward, so earlier weeks have disease counts but no predictors and cannot enter the model. The start is June 27 rather than July 1 because the weekly pipeline aligns to ISO week boundaries (Monday–Sunday): June 27 is the Monday of the week containing July 1.
+
+**`--study-start` / `--study-end`** define the daily DLNM window. The start is July 1 rather than June 27 because the HMIS system had a confirmed system-wide reporting gap from June 2–30 2022 (recorded in `data/reporting_gaps.csv`): those dates show zero visits across all diagnoses, not true disease absence. The daily pipeline works in calendar days with no week-alignment offset, so July 1 is the first usable date.
+
+The ML weekly start (June 27) and daily study start (July 1) are close but different for exactly this reason: one is week-aligned, the other is day-aligned to the end of the reporting gap.
+
+### What the runner does
+
+- **Pre-flight check:** imports every required package at startup and prints all missing ones with `pip install` commands before touching any notebook. A missing package fails in under a second rather than after 20+ minutes of execution.
+- **Parameter injection:** injects NETWORK, HSA_MODE, BOUNDARY_VERSION, DISEASE_FOCUS, and all date ranges into notebook config cells automatically.
+- **Reproducibility:** sets `PYTHONHASHSEED=42` in every kernel environment and prepends `random.seed(42)` / `np.random.seed(42)` as the first cell. Without a fixed seed, Python's hash randomization causes the greedy HSA optimizer to select different anchor facilities each run.
+- **Progress output:** prints a heartbeat line every 30 seconds during each notebook, with wall-clock timestamps and elapsed time per step.
+- **Failure artifacts:** saves the executed notebook (with all cell outputs) to `_pipeline_runs/{NETWORK}_{HSA_MODE}_{BOUNDARY_VERSION}/` for post-hoc inspection.
+
+**Required packages** (beyond the base `requirements.txt`): `rasterio`, `affine`, and `adjustText`. The pre-flight check will tell you immediately if any are missing.
+
+---
+
 ## Prerequisites
 
 ```bash
@@ -286,7 +362,28 @@ Weekly climate CSVs in the paper were generated with v6 boundaries. Daily climat
 
 ## Common Issues
 
-**`rasterio` not found:** Required for population allocation (WorldPop pixel reading). Install via `pip install rasterio` or `conda install -c conda-forge rasterio`.
+**Missing packages (`rasterio`, `affine`, `adjustText`):** All three are required by the pipeline but are not always installed by a bare `pip install -r requirements.txt` on some platforms. Install explicitly:
+
+```bash
+pip install rasterio affine adjustText
+```
+
+When using `run_pipeline.py`, the pre-flight check catches all missing packages at startup and prints the exact `pip install` commands needed before any notebook runs.
+
+**HSA optimizer produces different results on different runs:** The greedy anchor selection is sensitive to Python's hash randomization (`PYTHONHASHSEED`), which is re-randomized by default each time the interpreter starts. `run_pipeline.py` fixes this by setting `PYTHONHASHSEED=42` in every kernel's environment. When running notebooks manually, `PYTHONHASHSEED` is not set automatically, so results will vary between sessions unless you fix it yourself.
+
+The simplest option is to add it to your shell profile so it applies to every Jupyter session:
+
+```bash
+echo 'export PYTHONHASHSEED=42' >> ~/.zshrc
+source ~/.zshrc
+```
+
+If you prefer to set it per session rather than globally:
+
+```bash
+PYTHONHASHSEED=42 jupyter notebook
+```
 
 **GEE export stuck:** GEE exports are asynchronous. Check task status at https://code.earthengine.google.com/tasks. Large exports (daily, 2+ years, 19 HSAs) can take 60–120 minutes. If all tasks show COMPLETED but the polling loop keeps running, Drive likely renamed one file to `filename (1).csv` from a prior run — the notebooks detect this after 10 stall polls and fall back to a fuzzy name search automatically.
 

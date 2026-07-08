@@ -42,7 +42,7 @@ from scipy import stats
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_INPUT = BASE_DIR / "out/dlnm/dlnm_dataset.csv"
-DEFAULT_META  = BASE_DIR / "out/dlnm/hsa_metadata.csv"
+DEFAULT_META  = BASE_DIR / "data" / "hsa_metadata.csv"
 DEFAULT_OUTPUT = BASE_DIR / "out/dlnm/crossbasis"
 
 def parse_args(argv=None):

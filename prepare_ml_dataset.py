@@ -57,9 +57,8 @@ DEFAULT_OUTPUT_DIR = str(Path(DEFAULT_PIPELINE_OUT_DIR) / "modeling")
 DEFAULT_MISSING_THRESHOLD = 0.40  # Drop variables with >40% missing data
 DEFAULT_CORRELATION_THRESHOLD = 0.95  # Remove highly correlated features (r > 0.95)
 
-# Default date range (diagnostic code change in mid-2022)
-DEFAULT_START_DATE = "2022-06-27"  # Start of valid data range
-DEFAULT_END_DATE = "2024-01-29"    # End of valid data range (84 weeks total)
+# Study period dates have no hardcoded defaults; they must be passed via --start-date
+# and --end-date (or START_DATE/END_DATE env vars) from the calling notebook.
 
 def _default_disease(network):
     return "diarrheal" if network in ("INF", "SYN") else "hypertension"
@@ -118,10 +117,10 @@ def parse_args():
     parser.add_argument("--correlation-threshold", type=float,
                         default=float(os.environ.get("CORRELATION_THRESHOLD", DEFAULT_CORRELATION_THRESHOLD)),
                         help=f"Remove features with correlation above this (default: {DEFAULT_CORRELATION_THRESHOLD})")
-    parser.add_argument("--start-date", default=os.environ.get("START_DATE", DEFAULT_START_DATE),
-                        help=f"Start date for valid data range (default: {DEFAULT_START_DATE})")
-    parser.add_argument("--end-date", default=os.environ.get("END_DATE", DEFAULT_END_DATE),
-                        help=f"End date for valid data range (default: {DEFAULT_END_DATE})")
+    parser.add_argument("--start-date", default=os.environ.get("START_DATE"),
+                        help="Start date for valid data range (YYYY-MM-DD). Required.")
+    parser.add_argument("--end-date", default=os.environ.get("END_DATE"),
+                        help="End date for valid data range (YYYY-MM-DD). Required.")
     parser.add_argument("--boundary-version", default=DEFAULT_BOUNDARY_VERSION,
                         help="HSA boundary version (v6, v7, v8). Drives climate-dir default and output filename.")
     return parser.parse_args()
@@ -460,6 +459,10 @@ def main():
     global NETWORK, HSA_MODE, DISEASE_FOCUS, TARGET_COL, DIAGNOSIS_FILE
     global CLIMATE_DIR, OUTPUT_DIR, MISSING_THRESHOLD, CORRELATION_THRESHOLD, START_DATE, END_DATE
     args = parse_args()
+    if not args.start_date or not args.end_date:
+        print("ERROR: --start-date and --end-date are required (set in notebook or via START_DATE/END_DATE env vars)",
+              file=sys.stderr)
+        sys.exit(1)
 
     # Set all globals from arguments
     NETWORK = args.network
