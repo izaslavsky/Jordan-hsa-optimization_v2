@@ -356,7 +356,7 @@ Steps 1 and 2 run once. Set `BOUNDARY_VERSION = "v6" | "v7" | "v8"` for Steps 3â
 
 ---
 
-## Quick Start Guide for Reviewers
+## Quick Start
 
 ### Minimal Reproducibility (Option A - Recommended)
 
