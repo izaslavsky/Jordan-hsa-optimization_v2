@@ -25,7 +25,7 @@ Step 2  HSA_FINAL.ipynb                                  [run once]
             ├── (optional) compare_delineations.ipynb
             │
             ▼
-    ┌── BOUNDARY_VERSION = v6 | v7 | v8 ──────────────┐
+    ┌── BOUNDARY_VERSION = v6 | v7 | v8 ─────────────-─┐
     │  (Steps 3–6 repeat for each boundary version)    │
     └──────────────────────────────────────────────────┘
             │
