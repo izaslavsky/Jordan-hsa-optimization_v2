@@ -31,9 +31,13 @@ def build_paths(mode: str, version: str) -> tuple[list[Path], list[Path]]:
     ver_lo = f"_{version.lower()}" if version else ""
     ver_hi = f"_{version.upper()}" if version else ""
 
+    modeling_dir = OUT_DIR / "modeling"
+
     targets = [
         OUT_DIR / f"INF_{mode}_map{ver_lo}.gpkg",
         OUT_DIR / f"INF_{mode}_facility_hsa_assignments{ver_lo}.csv",
+        modeling_dir / f"INF_{mode}_modeling_dataset{ver_lo}.csv",
+        modeling_dir / f"INF_{mode}_daily_modeling_dataset{ver_lo}.csv",
     ]
 
     climate_dir = OUT_DIR / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD{ver_hi}" / "FINAL_HSA_CLIMATE"
