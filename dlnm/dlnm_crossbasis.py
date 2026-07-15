@@ -452,7 +452,7 @@ def main(argv=None):
     # Weight = 1/variance = 1/se²
     if len(hsa_rr_df) >= 5:
         weights = 1 / (hsa_rr_df["cum_se_75pct"] ** 2)
-        X_meta = sm.add_constant(hsa_rr_df["jmp_san_pct"].values)
+        X_meta = sm.add_constant(hsa_rr_df["jmp_san_pct"].values, has_constant='add')
         meta_model = sm.WLS(hsa_rr_df["cum_logRR_75pct"].values, X_meta,
                             weights=weights)
         meta_res = meta_model.fit()
