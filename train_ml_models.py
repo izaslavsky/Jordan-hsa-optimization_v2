@@ -668,9 +668,9 @@ def train_glm_models(X_train, y_train, X_val, y_val, X_test, y_test, feature_nam
 
     try:
         # Add intercept
-        X_train_sm = sm.add_constant(X_train_scaled)
-        X_val_sm = sm.add_constant(X_val_scaled)
-        X_test_sm = sm.add_constant(X_test_scaled)
+        X_train_sm = sm.add_constant(X_train_scaled, has_constant='add')
+        X_val_sm = sm.add_constant(X_val_scaled, has_constant='add')
+        X_test_sm = sm.add_constant(X_test_scaled, has_constant='add')
 
         # Fit NB model
         nb_model = sm.GLM(y_train, X_train_sm, family=sm.families.NegativeBinomial())
