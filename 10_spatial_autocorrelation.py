@@ -512,7 +512,7 @@ def plot_spatial_autocorrelation(weekly_df, morans_inv, morans_knn, mean_residua
 
 def main():
     parser = argparse.ArgumentParser(description='Spatial Autocorrelation Analysis')
-    parser.add_argument('--network', default='INF', choices=['INF', 'NCD'])
+    parser.add_argument('--network', default='INF', )
     parser.add_argument('--hsa-mode', default='footprint')
     parser.add_argument('--data-dir', default='data')
     parser.add_argument('--out-dir', default=DEFAULT_PIPELINE_OUT_DIR)

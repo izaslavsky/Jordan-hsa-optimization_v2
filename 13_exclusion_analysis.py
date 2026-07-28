@@ -568,7 +568,7 @@ def generate_markdown_report(summary: Dict,
 def main():
     """Main analysis function."""
     parser = argparse.ArgumentParser(description="Phase 1A: Excluded Population Analysis")
-    parser.add_argument("--network", default="INF", choices=["INF", "NCD"])
+    parser.add_argument("--network", default="INF", )
     parser.add_argument("--hsa-mode", default="footprint")
     parser.add_argument("--data-dir", default="data")
     parser.add_argument("--out-dir", default=DEFAULT_PIPELINE_OUT_DIR)

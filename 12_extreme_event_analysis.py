@@ -607,7 +607,7 @@ def create_summary_table(results_df, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description='Extreme Event Analysis')
-    parser.add_argument('--network', default='INF', choices=['INF', 'NCD'])
+    parser.add_argument('--network', default='INF', )
     parser.add_argument('--hsa-mode', default='footprint')
     parser.add_argument('--out-dir', default=DEFAULT_PIPELINE_OUT_DIR)
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_extreme_events'))

@@ -639,7 +639,7 @@ def create_supplement_table(results_df, decomposition, output_dir):
 
 def main():
     parser = argparse.ArgumentParser(description='Variance Decomposition Analysis')
-    parser.add_argument('--network', default='INF', choices=['INF', 'NCD'])
+    parser.add_argument('--network', default='INF', )
     parser.add_argument('--hsa-mode', default='footprint')
     parser.add_argument('--input-csv', default=None, help='Path to modeling dataset')
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_variance_decomposition'))

@@ -514,7 +514,7 @@ def run_weight_sensitivity_analysis(out_dir, network, hsa_mode, output_dir, boun
 
 def main():
     parser = argparse.ArgumentParser(description='Weight Sensitivity Analysis')
-    parser.add_argument('--network', default='INF', choices=['INF', 'NCD'])
+    parser.add_argument('--network', default='INF', )
     parser.add_argument('--hsa-mode', default='footprint')
     parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
                         help='HSA boundary version to load (v6, v7, v8). Default: BOUNDARY_VERSION env or v7.')
