@@ -83,3 +83,7 @@ generate_figures.py
 
 # Pipeline runner artifacts — executed notebooks and logs, populated at runtime
 _pipeline_runs/
+
+# Isolated run directories (sensitivity/alternate-target runs).
+# These hold real facility-level diagnosis counts and must never be published.
+out_*/

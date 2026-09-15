@@ -2641,6 +2641,8 @@ def upgrade_selected_anchors_to_stronger_facilities(
     min_volume_ratio=2.0,
     min_absolute_volume_gain=100.0,
     require_same_governorate=True,
+    relocation_overlap_guard=None,
+    max_relocation_overlap=None,
 ):
     """
     Replace weak selected anchors with stronger nearby facilities in the same
@@ -2651,6 +2653,14 @@ def upgrade_selected_anchors_to_stronger_facilities(
     more defensible HSA anchor. The original selected anchor remains a normal
     facility and will be assigned back into the upgraded HSA during patient
     allocation.
+
+    The replacement keeps the radius that was fitted to the anchor it replaces,
+    so a relocation can drop a full-size circle next to a neighbouring anchor
+    that was pruned against the *original* location. Pass a guard built by
+    `make_relocation_overlap_guard` to reject such relocations: candidates are
+    tried best-first and the first one that does not collide with another
+    anchor wins, so a weak anchor is upgraded only when somewhere sensible
+    exists to move it to.
     """
     if selected_facilities is None or len(selected_facilities) == 0:
         return selected_facilities, pd.DataFrame()
@@ -2680,6 +2690,17 @@ def upgrade_selected_anchors_to_stronger_facilities(
     ):
         if meta_col not in selected.columns:
             selected[meta_col] = default_value
+
+    if max_relocation_overlap is None:
+        max_relocation_overlap = getattr(
+            relocation_overlap_guard, 'overlap_threshold',
+            globals().get('OVERLAP_REMOVAL_THRESHOLD', 0.80)
+        )
+    guard_enabled = relocation_overlap_guard is not None
+    if guard_enabled:
+        print(f"  Anchor upgrade: relocation overlap guard active "
+              f"(reject if relocated circle overlaps another anchor by >"
+              f"{float(max_relocation_overlap)*100:.0f}%)")
 
     def _facility_type_rank(value):
         s = str(value).lower() if pd.notna(value) else ''
@@ -2712,6 +2733,7 @@ def upgrade_selected_anchors_to_stronger_facilities(
 
     selected_names = set(selected[selected_name_col].astype(str).str.strip())
     audit_rows = []
+    facilities_wgs = facilities.to_crs('EPSG:4326') if guard_enabled else None
 
     for idx, anchor in selected.iterrows():
         anchor_name = str(anchor[selected_name_col]).strip()
@@ -2776,11 +2798,69 @@ def upgrade_selected_anchors_to_stronger_facilities(
                 'replacement_volume': np.nan,
                 'distance_km': np.nan,
                 'same_governorate': np.nan,
+                'candidates_considered': 0,
+                'candidates_blocked_by_overlap': 0,
+                'blocking_anchor': '',
+                'relocation_overlap_frac': np.nan,
+                'relocation_overlap_direction': '',
             })
             continue
 
         candidates.sort(key=lambda x: x[0], reverse=True)
-        _, cand_idx, cand_name, cand_type, _, cand_volume, cand_dist, same_gov, volume_ratio, volume_gain = candidates[0]
+
+        # Try candidates best-first and take the first relocation that does not
+        # drop the inherited circle on top of another anchor.
+        chosen = None
+        blocked = 0
+        block_name, block_frac, block_dir = '', np.nan, ''
+        if guard_enabled:
+            others_wgs = (
+                selected.drop(index=idx).to_crs('EPSG:4326')
+                if str(selected.crs).upper() not in ('EPSG:4326', 'WGS84')
+                else selected.drop(index=idx)
+            )
+        for cand in candidates:
+            if not guard_enabled:
+                chosen = cand
+                break
+            cand_geom_wgs = facilities_wgs.loc[cand[1]].geometry
+            frac, worst_anchor, direction = relocation_overlap_guard(
+                cand_geom_wgs.x, cand_geom_wgs.y, float(radius_km), others_wgs
+            )
+            if frac > float(max_relocation_overlap):
+                blocked += 1
+                if not isinstance(block_frac, float) or np.isnan(block_frac) or frac > block_frac:
+                    block_name, block_frac, block_dir = worst_anchor, float(frac), direction
+                continue
+            chosen = cand
+            block_frac = float(frac)
+            block_name, block_dir = worst_anchor, direction
+            break
+
+        if chosen is None:
+            print(f"    Anchor upgrade blocked for {anchor_name}: every candidate would overlap "
+                  f"{block_name} by {block_frac*100:.1f}% (>{float(max_relocation_overlap)*100:.0f}%); "
+                  f"keeping original anchor")
+            audit_rows.append({
+                'original_anchor': anchor_name,
+                'replacement_anchor': '',
+                'upgraded': False,
+                'reason': 'all candidates blocked by relocation overlap guard',
+                'original_type': anchor_type,
+                'replacement_type': '',
+                'original_volume': anchor_volume,
+                'replacement_volume': np.nan,
+                'distance_km': np.nan,
+                'same_governorate': np.nan,
+                'candidates_considered': len(candidates),
+                'candidates_blocked_by_overlap': blocked,
+                'blocking_anchor': block_name,
+                'relocation_overlap_frac': block_frac,
+                'relocation_overlap_direction': block_dir,
+            })
+            continue
+
+        _, cand_idx, cand_name, cand_type, _, cand_volume, cand_dist, same_gov, volume_ratio, volume_gain = chosen
         replacement = facilities.loc[cand_idx].copy()
 
         for col in selected.columns:
@@ -2820,6 +2900,11 @@ def upgrade_selected_anchors_to_stronger_facilities(
             'volume_gain': volume_gain,
             'distance_km': cand_dist,
             'same_governorate': same_gov,
+            'candidates_considered': len(candidates),
+            'candidates_blocked_by_overlap': blocked,
+            'blocking_anchor': block_name,
+            'relocation_overlap_frac': block_frac,
+            'relocation_overlap_direction': block_dir,
         })
 
     selected['upgraded_anchor'] = selected['upgraded_anchor'].fillna(False).astype(bool)
@@ -2839,9 +2924,18 @@ def upgrade_selected_anchors_to_stronger_facilities(
         'volume_gain',
         'distance_km',
         'same_governorate',
+        'candidates_considered',
+        'candidates_blocked_by_overlap',
+        'blocking_anchor',
+        'relocation_overlap_frac',
+        'relocation_overlap_direction',
     ]
     audit = pd.DataFrame(audit_rows, columns=audit_columns)
     n_upgraded = int(audit['upgraded'].sum()) if not audit.empty else 0
+    n_blocked = int((audit['reason'] == 'all candidates blocked by relocation overlap guard').sum()) \
+        if not audit.empty else 0
+    if n_blocked:
+        print(f"  Anchor upgrade audit: {n_blocked} upgrade(s) rejected by the relocation overlap guard")
     if n_upgraded:
         pairs = audit[audit['upgraded']].apply(
             lambda r: f"{r['original_anchor']} -> {r['replacement_anchor']}", axis=1
@@ -2991,15 +3085,19 @@ def promote_major_uncovered_facilities(
             promote_indices.append(idx)
 
     audit_columns = [
-        'anchor_name',
-        'satellite_facility',
-        'satellite_governorate',
+        'facility_id',
+        'healthfacilitytype',
+        'governorate',
+        'volume',
+        'is_major_facility',
+        'covered_by_existing_hsa',
+        'nearest_hsa',
+        'nearest_hsa_governorate',
+        'distance_to_nearest_hsa_km',
+        'nearest_hsa_radius_km',
+        'fallback_limit_km',
         'same_governorate',
-        'distance_to_anchor_km',
-        'anchor_radius_km',
-        'satellite_radius_km',
-        'satellite_volume',
-        'extends_primary_boundary',
+        'promoted_to_anchor',
     ]
     audit = pd.DataFrame(audit_rows, columns=audit_columns)
     if not promote_indices:
@@ -3034,6 +3132,574 @@ def promote_major_uncovered_facilities(
     promoted_names = ', '.join(promoted['HealthFacility'].astype(str).tolist())
     print(f"  Major orphan audit: promoted {len(promoted)} additional anchor(s): {promoted_names}")
     return result, audit
+
+
+# ============ Cell 20c ============
+# ---------------------------------------------------------------------------
+# Order-of-operations safeguards for post-greedy anchor edits
+# ---------------------------------------------------------------------------
+# The greedy optimiser prunes overlapping HSAs while every anchor still sits at
+# the location it was scored at. Anchor upgrade and major-facility promotion
+# then move or add anchors *after* that pruning, and an upgraded anchor keeps
+# the radius that was fitted to the facility it replaced. Moving a circle while
+# preserving its radius can push it on top of a neighbouring anchor, producing
+# a pair of near-identical HSAs that the earlier pruning pass never saw.
+#
+# Two safeguards close that gap:
+#   * a guard consulted while an upgrade is being chosen, so a relocation that
+#     would collide with an existing anchor is rejected up front, and
+#   * a final pruning + coverage-repair pass over the completed anchor set.
+#
+# Both use the same population-weighted overlap fraction as the in-optimiser
+# pruning step, so OVERLAP_REMOVAL_THRESHOLD means one thing everywhere.
+
+ANCHOR_METRIC_CRS = 'EPSG:32637'
+
+
+def _cfg(name, default):
+    """Read a notebook-injected module global, falling back to a default."""
+    value = globals().get(name, None)
+    return default if value is None else value
+
+
+def _to_wgs84(gdf):
+    gdf = _ensure_geometry_from_latlon(gdf)
+    if gdf.crs is None:
+        gdf = gdf.set_crs('EPSG:4326')
+    elif str(gdf.crs).upper() not in ('EPSG:4326', 'WGS84'):
+        gdf = gdf.to_crs('EPSG:4326')
+    return gdf
+
+
+def _as_anchor_points(gdf):
+    """Anchor-point view of a delineation.
+
+    Inside the pipeline an anchor's geometry is its facility point, but the
+    written geojsons carry the clipped HSA polygon instead. Rebuild points from
+    the lat/lon columns whenever the geometry is not already a point, so the
+    overlap report works on both.
+    """
+    gdf = gdf.copy()
+    geom_is_point = (
+        len(gdf) > 0
+        and gdf.geometry.notna().all()
+        and (gdf.geometry.geom_type == 'Point').all()
+    )
+    if geom_is_point:
+        return _to_wgs84(gdf)
+
+    lat_col = next((c for c in ('lat', 'Latitude') if c in gdf.columns), None)
+    lon_col = next((c for c in ('lon', 'Longitude') if c in gdf.columns), None)
+    if lat_col is None or lon_col is None:
+        raise ValueError(
+            "Anchor geometry is not point-based and no lat/lon columns are present"
+        )
+    return gpd.GeoDataFrame(
+        gdf.drop(columns=[gdf.geometry.name], errors='ignore'),
+        geometry=gpd.points_from_xy(gdf[lon_col], gdf[lat_col]),
+        crs='EPSG:4326',
+    )
+
+
+def _as_bool_flag(series, index=None):
+    """
+    Coerce a provenance flag column to real booleans.
+
+    In-process these columns are genuine bools, but a GeoJSON round-trip turns
+    them into the strings '0.0' and '1.0', and `astype(bool)` maps every
+    non-empty string to True. That silently marks every anchor as relocated and
+    destroys the pruning rank order, so parse the values rather than cast them.
+    """
+    if series is None:
+        return pd.Series(False, index=index if index is not None else [])
+    if series.dtype == bool:
+        return series.fillna(False)
+
+    falsey = {'', '0', '0.0', 'false', 'f', 'no', 'none', 'nan', 'na', '<na>'}
+
+    def _one(value):
+        if value is None or (isinstance(value, float) and pd.isna(value)):
+            return False
+        if isinstance(value, (bool, np.bool_)):
+            return bool(value)
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            return bool(value)
+        return str(value).strip().lower() not in falsey
+
+    return series.map(_one).astype(bool)
+
+
+def _anchor_radius(row, default_radius=None):
+    if default_radius is None:
+        default_radius = _cfg('RURAL_BASE_RADIUS_KM', 18.0)
+    for col in ('service_radius_km', 'initial_radius_km'):
+        value = pd.to_numeric(row.get(col), errors='coerce') if col in row else np.nan
+        if pd.notna(value) and value > 0:
+            return float(value)
+    return float(default_radius)
+
+
+def _get_population_grid(self):
+    """Population array + transform for the full Jordan extent, cached per optimizer."""
+    if getattr(self, '_pop_grid_cache', None) is None:
+        bounds = _cfg('JORDAN_BOUNDS', [34.5, 29.0, 39.5, 33.5])
+        self._pop_grid_cache = self.pop.get_cropped(bounds)
+    return self._pop_grid_cache
+
+
+HSAOptimizer.get_population_grid = _get_population_grid
+
+
+def _circle_overlap_fraction(point_a, radius_a_km, point_b, radius_b_km):
+    """Area overlap of circle A that falls inside circle B (metric CRS points)."""
+    circle_a = point_a.buffer(float(radius_a_km) * 1000.0)
+    circle_b = point_b.buffer(float(radius_b_km) * 1000.0)
+    if circle_a.area <= 0:
+        return 0.0
+    return float(circle_a.intersection(circle_b).area / circle_a.area)
+
+
+def anchor_overlap_report(selected_facilities, overlap_threshold=None, optimizer=None):
+    """
+    Pairwise overlap between final anchor service areas.
+
+    Returns one row per ordered anchor pair whose overlap exceeds the
+    threshold, i.e. rows where `overlap_frac` of anchor A's service area lies
+    inside anchor B's. An empty frame is the invariant the delineation must
+    satisfy: no two HSAs are near-duplicates of each other.
+
+    Pass `optimizer` to measure overlap on the population raster, the same
+    basis the pruning steps use, so one threshold means one thing throughout.
+    Without it the report falls back to plain circle area, which differs
+    wherever a circle covers large uninhabited areas; `overlap_frac_area` is
+    always reported alongside as a diagnostic.
+    """
+    if overlap_threshold is None:
+        overlap_threshold = _cfg('OVERLAP_REMOVAL_THRESHOLD', 0.80)
+
+    columns = ['anchor_a', 'anchor_b', 'distance_km', 'radius_a_km', 'radius_b_km',
+               'overlap_frac', 'overlap_basis', 'overlap_frac_area',
+               'a_upgraded', 'b_upgraded']
+    if selected_facilities is None or len(selected_facilities) < 2:
+        return pd.DataFrame(columns=columns)
+
+    gdf = _as_anchor_points(selected_facilities.copy().reset_index(drop=True))
+    metric = gdf.to_crs(ANCHOR_METRIC_CRS)
+    name_col = 'HealthFacility' if 'HealthFacility' in gdf.columns else 'FacilityName'
+    radii = [_anchor_radius(row) for _, row in gdf.iterrows()]
+    upgraded = _as_bool_flag(gdf.get('upgraded_anchor'), gdf.index)
+
+    basis = 'circle_area'
+    masks = None
+    if optimizer is not None:
+        pop_arr, transform = optimizer.get_population_grid()
+        masks = [
+            optimizer._get_coverage_mask(row, pop_arr.shape, transform, radii[i])
+            for i, (_, row) in enumerate(gdf.iterrows())
+        ]
+        sizes = [int(m.sum()) for m in masks]
+        basis = 'populated_cells'
+
+    rows = []
+    for i in range(len(gdf)):
+        for j in range(len(gdf)):
+            if i == j:
+                continue
+            area_frac = _circle_overlap_fraction(metric.geometry.iloc[i], radii[i],
+                                                 metric.geometry.iloc[j], radii[j])
+            if masks is None:
+                frac = area_frac
+            elif sizes[i] == 0:
+                frac = 0.0
+            else:
+                frac = int((masks[i] & masks[j]).sum()) / sizes[i]
+            if frac > overlap_threshold:
+                rows.append({
+                    'anchor_a': str(gdf[name_col].iloc[i]),
+                    'anchor_b': str(gdf[name_col].iloc[j]),
+                    'distance_km': metric.geometry.iloc[i].distance(metric.geometry.iloc[j]) / 1000.0,
+                    'radius_a_km': radii[i],
+                    'radius_b_km': radii[j],
+                    'overlap_frac': float(frac),
+                    'overlap_basis': basis,
+                    'overlap_frac_area': float(area_frac),
+                    'a_upgraded': bool(upgraded.iloc[i]),
+                    'b_upgraded': bool(upgraded.iloc[j]),
+                })
+    return pd.DataFrame(rows, columns=columns)
+
+
+def make_relocation_overlap_guard(optimizer, overlap_threshold=None):
+    """
+    Build the callable consulted by the anchor-upgrade step.
+
+    The guard answers a single question: if this anchor moved to `candidate`
+    while keeping `radius_km`, would the relocated circle sit on top of another
+    anchor? It reports the population-weighted overlap in both directions,
+    because a small relocated circle swallowed by a large neighbour and a large
+    relocated circle swallowing a small neighbour are both failures.
+    """
+    if overlap_threshold is None:
+        overlap_threshold = _cfg('OVERLAP_REMOVAL_THRESHOLD', 0.80)
+
+    pop_arr, transform = optimizer.get_population_grid()
+    shape = pop_arr.shape
+    mask_cache = {}
+
+    def _mask(lon, lat, radius_km):
+        key = (round(float(lon), 6), round(float(lat), 6), round(float(radius_km), 4))
+        if key not in mask_cache:
+            stub = pd.Series({'geometry': Point(lon, lat)})
+            mask_cache[key] = optimizer._get_coverage_mask(stub, shape, transform, radius_km)
+        return mask_cache[key]
+
+    def guard(cand_lon, cand_lat, radius_km, other_anchors):
+        """Return (worst_overlap_frac, worst_anchor_name, direction)."""
+        cand_mask = _mask(cand_lon, cand_lat, radius_km)
+        cand_size = int(cand_mask.sum())
+        worst_frac, worst_name, worst_dir = 0.0, '', ''
+        if cand_size == 0:
+            return 1.0, '', 'candidate_covers_no_population'
+
+        for _, other in other_anchors.iterrows():
+            other_radius = _anchor_radius(other)
+            other_mask = _mask(other.geometry.x, other.geometry.y, other_radius)
+            other_size = int(other_mask.sum())
+            if other_size == 0:
+                continue
+            inter = int((cand_mask & other_mask).sum())
+            for frac, direction in ((inter / cand_size, 'candidate_inside_anchor'),
+                                    (inter / other_size, 'anchor_inside_candidate')):
+                if frac > worst_frac:
+                    worst_frac = float(frac)
+                    worst_name = str(other.get('HealthFacility', other.get('FacilityName', '')))
+                    worst_dir = direction
+        return worst_frac, worst_name, worst_dir
+
+    guard.overlap_threshold = float(overlap_threshold)
+    return guard
+
+
+def _prune_overlapping_anchors(optimizer, selected_facilities, overlap_threshold=None,
+                               protect_original_anchors=True, symmetric=True):
+    """
+    Final overlap pruning over the completed anchor set (greedy + upgrades +
+    promotions).
+
+    Two things differ from the in-optimiser pass.
+
+    Ranking: an anchor whose circle was inherited from a facility at a different
+    location has a weaker claim to that geometry than an anchor that was scored
+    where it stands, so relocated and promoted anchors are evaluated after
+    in-place ones and yield first when two circles collide. Within each tier,
+    larger patient volume wins, matching the original rule.
+
+    Direction: the in-optimiser pass asks only whether an anchor is swallowed by
+    the anchors ranked above it. That misses the mirror case, where a small
+    low-volume anchor's circle swallows a larger neighbour, which is just as
+    much a pair of near-duplicate HSAs. With `symmetric=True` a pair is flagged
+    when either direction exceeds the threshold, and the lower-ranked member
+    yields.
+    """
+    if overlap_threshold is None:
+        overlap_threshold = _cfg('OVERLAP_REMOVAL_THRESHOLD', 0.80)
+
+    audit_columns = ['anchor', 'removed', 'overlap_frac', 'overlap_direction',
+                     'overlapping_with', 'patient_volume', 'relocated', 'rank']
+    if selected_facilities is None or len(selected_facilities) < 2:
+        return selected_facilities, pd.DataFrame(columns=audit_columns)
+
+    pop_arr, transform = optimizer.get_population_grid()
+    fac = _as_anchor_points(selected_facilities.copy().reset_index(drop=True))
+    name_col = 'HealthFacility' if 'HealthFacility' in fac.columns else 'FacilityName'
+
+    volume = pd.to_numeric(fac.get('Total'), errors='coerce').fillna(0.0) \
+        if 'Total' in fac.columns else pd.Series(0.0, index=fac.index)
+    relocated = pd.Series(False, index=fac.index)
+    if protect_original_anchors:
+        for flag_col in ('upgraded_anchor', 'forced_anchor'):
+            if flag_col in fac.columns:
+                relocated |= _as_bool_flag(fac[flag_col], fac.index)
+
+    order = pd.DataFrame({'relocated': relocated.astype(int), 'volume': volume}) \
+        .sort_values(['relocated', 'volume'], ascending=[True, False]).index.tolist()
+    fac_sorted = fac.loc[order].reset_index(drop=True)
+    volume_sorted = volume.loc[order].reset_index(drop=True)
+    relocated_sorted = relocated.loc[order].reset_index(drop=True)
+
+    masks = [
+        optimizer._get_coverage_mask(row, pop_arr.shape, transform, _anchor_radius(row))
+        for _, row in fac_sorted.iterrows()
+    ]
+
+    sizes = [int(m.sum()) for m in masks]
+    keep = np.ones(len(fac_sorted), dtype=bool)
+    audit_rows = []
+
+    def _row(i, removed, frac, direction, other):
+        return {'anchor': str(fac_sorted[name_col].iloc[i]), 'removed': bool(removed),
+                'overlap_frac': float(frac), 'overlap_direction': direction,
+                'overlapping_with': other,
+                'patient_volume': float(volume_sorted.iloc[i]),
+                'relocated': bool(relocated_sorted.iloc[i]), 'rank': i}
+
+    for i in range(len(fac_sorted)):
+        my_mask, my_size = masks[i], sizes[i]
+        if i == 0:
+            audit_rows.append(_row(i, False, 0.0, '', ''))
+            continue
+        if my_size == 0:
+            keep[i] = False
+            audit_rows.append(_row(i, True, 1.0, 'empty', 'no populated cells'))
+            continue
+
+        # Forward direction: how much of this anchor is already served by the
+        # anchors ranked above it, taken as a union so several partial
+        # neighbours can jointly make it redundant.
+        higher_union = np.zeros_like(my_mask, dtype=bool)
+        worst_frac, worst_name, worst_dir = 0.0, '', ''
+        for j in range(i):
+            if not keep[j]:
+                continue
+            higher_union |= masks[j]
+            if symmetric and sizes[j] > 0:
+                # Mirror direction: this anchor swallowing a higher-ranked one.
+                frac_rev = int((my_mask & masks[j]).sum()) / sizes[j]
+                if frac_rev > worst_frac:
+                    worst_frac = frac_rev
+                    worst_name = str(fac_sorted[name_col].iloc[j])
+                    worst_dir = 'higher_anchor_inside_this'
+        union_frac = int((my_mask & higher_union).sum()) / my_size
+        if union_frac >= worst_frac:
+            worst_frac, worst_dir = union_frac, 'this_inside_higher_anchors'
+            if not worst_name:
+                best_j, best_f = '', 0.0
+                for j in range(i):
+                    if keep[j]:
+                        f = int((my_mask & masks[j]).sum()) / my_size
+                        if f > best_f:
+                            best_f, best_j = f, str(fac_sorted[name_col].iloc[j])
+                worst_name = best_j
+
+        removed = bool(worst_frac > overlap_threshold)
+        keep[i] = not removed
+        audit_rows.append(_row(i, removed, worst_frac, worst_dir, worst_name))
+
+    result = fac_sorted[keep].copy().reset_index(drop=True)
+    audit = pd.DataFrame(audit_rows, columns=audit_columns)
+    n_removed = int((~keep).sum())
+    if n_removed:
+        dropped = ', '.join(audit.loc[audit['removed'], 'anchor'].tolist())
+        print(f"  Final overlap removal: dropped {n_removed} anchor(s): {dropped}")
+    else:
+        print("  Final overlap removal: no anchors exceeded the overlap threshold")
+    return result, audit
+
+
+def _repair_coverage_deficit(optimizer, selected_facilities, all_facilities,
+                             target_coverage=None, overlap_threshold=None,
+                             max_additions=10):
+    """
+    Restore target population coverage after final pruning.
+
+    Adds unselected facilities one at a time by largest marginal population
+    gain, and stops as soon as the target is met or no candidate adds
+    population. Every addition is tested for overlap in both directions against
+    the anchors already in place, so the repair cannot reintroduce the
+    near-duplicate pair the pruning step just removed.
+    """
+    if target_coverage is None:
+        target_coverage = _cfg('TAU_COVERAGE', 0.90)
+    if overlap_threshold is None:
+        overlap_threshold = _cfg('OVERLAP_REMOVAL_THRESHOLD', 0.80)
+
+    audit_columns = ['added_anchor', 'marginal_population', 'coverage_pct_after',
+                     'service_radius_km', 'overlap_frac', 'overlap_direction']
+    pop_arr, transform = optimizer.get_population_grid()
+    total_pop = float(pop_arr.sum())
+    selected = _as_anchor_points(selected_facilities.copy().reset_index(drop=True))
+    name_col = 'HealthFacility' if 'HealthFacility' in selected.columns else 'FacilityName'
+
+    # Individual anchor masks, not just their union: an addition must be tested
+    # in both directions. A large new circle can sit mostly outside the union
+    # yet still swallow one small anchor whole, which is the same near-duplicate
+    # failure the pruning step rejects.
+    anchor_masks = [
+        optimizer._get_coverage_mask(row, pop_arr.shape, transform, _anchor_radius(row))
+        for _, row in selected.iterrows()
+    ]
+    covered = np.zeros(pop_arr.shape, dtype=bool)
+    for mask in anchor_masks:
+        covered |= mask
+
+    def coverage_pct(mask):
+        return 0.0 if total_pop <= 0 else 100.0 * float(pop_arr[mask].sum()) / total_pop
+
+    start_pct = coverage_pct(covered)
+    target_pct = float(target_coverage) * 100.0
+    if start_pct >= target_pct:
+        print(f"  Coverage repair: not required ({start_pct:.1f}% >= {target_pct:.1f}% target)")
+        return selected, pd.DataFrame(columns=audit_columns), start_pct
+
+    print(f"  Coverage repair: {start_pct:.1f}% < {target_pct:.1f}% target, adding anchors...")
+    candidates = _as_anchor_points(all_facilities.copy().reset_index(drop=True))
+    cand_name_col = 'HealthFacility' if 'HealthFacility' in candidates.columns else 'FacilityName'
+    taken = set(selected[name_col].astype(str).str.strip())
+    candidates = candidates[~candidates[cand_name_col].astype(str).str.strip().isin(taken)]
+
+    if 'initial_radius_km' not in candidates.columns:
+        radii, _urban = choose_radius_km_for_facilities(
+            candidates, optimizer.config['pop_path'],
+            _cfg('NETWORK', 'INF')
+        )
+        candidates['initial_radius_km'] = radii
+
+    def _worst_overlap(mask, size):
+        """Largest overlap fraction in either direction against current anchors."""
+        worst, direction = int((mask & covered).sum()) / size, 'candidate_inside_anchors'
+        for anchor_mask in anchor_masks:
+            anchor_size = int(anchor_mask.sum())
+            if anchor_size == 0:
+                continue
+            frac = int((mask & anchor_mask).sum()) / anchor_size
+            if frac > worst:
+                worst, direction = frac, 'anchor_inside_candidate'
+        return worst, direction
+
+    audit_rows = []
+    for _ in range(int(max_additions)):
+        best = None
+        for idx, cand in candidates.iterrows():
+            radius = _anchor_radius(cand)
+            mask = optimizer._get_coverage_mask(cand, pop_arr.shape, transform, radius)
+            size = int(mask.sum())
+            if size == 0:
+                continue
+            overlap_frac, overlap_dir = _worst_overlap(mask, size)
+            if overlap_frac > overlap_threshold:
+                continue
+            gain = float(pop_arr[mask & ~covered].sum())
+            if gain > 0 and (best is None or gain > best[0]):
+                best = (gain, idx, mask, radius, overlap_frac, overlap_dir)
+        if best is None:
+            print("  Coverage repair: no remaining facility adds population without excessive overlap")
+            break
+
+        gain, idx, mask, radius, overlap_frac, overlap_dir = best
+        addition = candidates.loc[[idx]].copy()
+        addition['service_radius_km'] = radius
+        if 'initial_radius_km' not in addition.columns:
+            addition['initial_radius_km'] = radius
+        for col in selected.columns:
+            if col not in addition.columns and col != addition.geometry.name:
+                addition[col] = np.nan
+        addition = addition[selected.columns]
+        addition['forced_anchor'] = True
+        addition['promotion_reason'] = 'coverage_repair_after_overlap_removal'
+
+        selected = gpd.GeoDataFrame(
+            pd.concat([selected, addition], ignore_index=True),
+            geometry=selected.geometry.name, crs=selected.crs
+        )
+        covered |= mask
+        anchor_masks.append(mask)
+        candidates = candidates.drop(index=idx)
+        now_pct = coverage_pct(covered)
+        audit_rows.append({
+            'added_anchor': str(addition[name_col].iloc[0]),
+            'marginal_population': gain,
+            'coverage_pct_after': now_pct,
+            'service_radius_km': radius,
+            'overlap_frac': overlap_frac,
+            'overlap_direction': overlap_dir,
+        })
+        print(f"    + {addition[name_col].iloc[0]} (+{gain:,.0f} people -> {now_pct:.1f}%)")
+        if now_pct >= target_pct:
+            break
+
+    return selected, pd.DataFrame(audit_rows, columns=audit_columns), coverage_pct(covered)
+
+
+def finalize_anchor_set(optimizer, selected_facilities, all_facilities,
+                        overlap_threshold=None, target_coverage=None,
+                        protect_original_anchors=True, repair_coverage=True,
+                        max_additions=10, symmetric_overlap=True,
+                        restore_only=False):
+    """
+    Steps 5-6 of the delineation sequence: prune overlaps created by the
+    post-greedy anchor edits, then recompute coverage and repair the deficit
+    those edits left behind.
+
+    `target_coverage` is the national population fraction the repair aims for,
+    normally the algorithm's own TAU_COVERAGE. Set `restore_only=True` for the
+    governorate modes, whose coverage contract is per-governorate: there a
+    national target is meaningless, so the repair only restores the coverage
+    that this function's own pruning removed and adds nothing beyond it.
+
+    The repair ranks candidates by marginal population alone, not by the
+    mode's weight profile, because the deficit being repaired is a coverage
+    deficit. For FEWEST that is the mode's own objective; for FOOTPRINT and
+    DISTANCE the added anchors are chosen off-profile, which is why the repair
+    audit records every addition.
+
+    Returns (selected, audits, stats) where `audits` holds the pruning,
+    repair and residual-overlap frames and `stats` holds before/after anchor
+    counts and coverage percentages.
+    """
+    pop_arr, transform = optimizer.get_population_grid()
+    total_pop = float(pop_arr.sum())
+
+    def _coverage_pct(gdf):
+        if total_pop <= 0:
+            return 0.0
+        covered = np.zeros(pop_arr.shape, dtype=bool)
+        for _, row in gdf.iterrows():
+            covered |= optimizer._get_coverage_mask(row, pop_arr.shape, transform, _anchor_radius(row))
+        return 100.0 * float(pop_arr[covered].sum()) / total_pop
+
+    before = _as_anchor_points(selected_facilities.copy().reset_index(drop=True))
+    stats = {'n_anchors_before': int(len(before)), 'coverage_pct_before': _coverage_pct(before)}
+
+    pruned, prune_audit = _prune_overlapping_anchors(
+        optimizer, before, overlap_threshold=overlap_threshold,
+        protect_original_anchors=protect_original_anchors,
+        symmetric=symmetric_overlap
+    )
+    stats['n_anchors_after_pruning'] = int(len(pruned))
+    stats['coverage_pct_after_pruning'] = _coverage_pct(pruned)
+
+    if repair_coverage:
+        effective_target = (
+            stats['coverage_pct_before'] / 100.0 if restore_only else target_coverage
+        )
+        stats['repair_target_pct'] = (
+            float(effective_target) * 100.0 if effective_target is not None
+            else _cfg('TAU_COVERAGE', 0.90) * 100.0
+        )
+        final, repair_audit, coverage_pct = _repair_coverage_deficit(
+            optimizer, pruned, all_facilities,
+            target_coverage=effective_target, overlap_threshold=overlap_threshold,
+            max_additions=max_additions
+        )
+    else:
+        final, repair_audit, coverage_pct = pruned, pd.DataFrame(), stats['coverage_pct_after_pruning']
+
+    stats['n_anchors_final'] = int(len(final))
+    stats['coverage_pct_final'] = coverage_pct
+
+    residual = anchor_overlap_report(final, overlap_threshold=overlap_threshold,
+                                     optimizer=optimizer)
+    stats['residual_overlap_violations'] = int(len(residual))
+    if len(residual):
+        print(f"  WARNING: {len(residual)} anchor pair(s) still exceed the overlap threshold "
+              f"after finalization")
+
+    print(f"  Finalized anchor set: {stats['n_anchors_before']} -> {stats['n_anchors_final']} anchors, "
+          f"coverage {stats['coverage_pct_before']:.1f}% -> {stats['coverage_pct_final']:.1f}%")
+    audits = {'final_overlap_removal': prune_audit,
+              'coverage_repair': repair_audit,
+              'residual_overlap': residual}
+    return final, audits, stats
 
 
 def create_hsa_polygons(facilities_gdf):
