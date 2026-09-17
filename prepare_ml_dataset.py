@@ -107,10 +107,13 @@ def parse_args():
                         help="Disease focus (e.g., diarrheal, hypertension)")
     parser.add_argument("--out-dir", default=os.environ.get("HSA_OUT_DIR", os.environ.get("PIPELINE_OUT_DIR", DEFAULT_PIPELINE_OUT_DIR)),
                         help="Pipeline output directory containing weekly disease count files")
-    parser.add_argument("--climate-dir", default=os.environ.get("CLIMATE_DIR", DEFAULT_CLIMATE_DIR),
-                        help=f"Directory containing climate CSV files (default: {DEFAULT_CLIMATE_DIR})")
-    parser.add_argument("--output-dir", default=os.environ.get("OUTPUT_DIR", DEFAULT_OUTPUT_DIR),
-                        help=f"Output directory for modeling dataset (default: {DEFAULT_OUTPUT_DIR})")
+    # Left unset so it can be derived from --out-dir below. Giving it a concrete
+    # default here pinned it to the directory resolved at import time, which
+    # made --out-dir silently not move where climate is read from.
+    parser.add_argument("--climate-dir", default=os.environ.get("CLIMATE_DIR"),
+                        help=f"Directory containing climate CSV files (default: derived from --out-dir, e.g. {DEFAULT_CLIMATE_DIR})")
+    parser.add_argument("--output-dir", default=os.environ.get("OUTPUT_DIR"),
+                        help=f"Output directory for modeling dataset (default: derived from --out-dir, e.g. {DEFAULT_OUTPUT_DIR})")
     parser.add_argument("--missing-threshold", type=float,
                         default=float(os.environ.get("MISSING_THRESHOLD", DEFAULT_MISSING_THRESHOLD)),
                         help=f"Drop features with missing data above this fraction (default: {DEFAULT_MISSING_THRESHOLD})")
@@ -474,10 +477,16 @@ def main():
     # Resolve to the canonical group slug; column names are derived, never hardcoded.
     DISEASE_FOCUS = slug(canonical_group(NETWORK, args.disease_focus))
     TARGET_COL = f"{DISEASE_FOCUS}_count_adjusted"
-    # If --climate-dir was not explicitly provided, derive it from boundary_version
-    # so that the default follows the versioned directory layout.
-    if args.climate_dir == DEFAULT_CLIMATE_DIR and args.boundary_version != DEFAULT_BOUNDARY_VERSION:
-        args.climate_dir = str(Path(args.out_dir) / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{args.boundary_version.upper()}" / "FINAL_HSA_CLIMATE")
+    # Derive from --out-dir whenever the caller did not name a directory outright,
+    # so an isolated run reads and writes entirely inside its own directory.
+    # This previously keyed off boundary_version, so --out-dir had no effect at
+    # the default version and an isolated run silently read out/.
+    if not args.climate_dir:
+        args.climate_dir = str(Path(args.out_dir)
+                               / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{args.boundary_version.upper()}"
+                               / "FINAL_HSA_CLIMATE")
+    if not args.output_dir:
+        args.output_dir = str(Path(args.out_dir) / "modeling")
     CLIMATE_DIR = Path(args.climate_dir)
     OUTPUT_DIR = Path(args.output_dir)
     OUTPUT_DIR.mkdir(exist_ok=True, parents=True)
