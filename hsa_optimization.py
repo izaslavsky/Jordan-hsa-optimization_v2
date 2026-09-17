@@ -2215,205 +2215,139 @@ def _optimize_governorate_tau_coverage_method(self, fac, pop_arr, transform, tar
 
     
 
-    # PHASE 2: Continue greedy selection until coverage target reached
+    # PHASE 2: Raise every governorate to the tau coverage target.
+    #
+    # The mode's contract is tau coverage *within each governorate*, not
+    # nationally. A national stopping rule looks satisfied as soon as the dense
+    # governorates are served, because they dominate the population sum, and it
+    # abandons the sparse ones: under the old national rule Amman and Zarqa
+    # finished above 97% while Mafraq sat at 48.9% and Ma'an at 52.6%.
+    # Selection therefore proceeds governorate by governorate, always serving
+    # the largest remaining shortfall, and measures progress against that
+    # governorate's own population.
+    tau = float(self.config['tau_coverage'])
+    print(f"    Phase 2: Raising every governorate to {tau*100:.0f}% of its own population...")
 
-    print(f"    Phase 2: Continuing greedy selection to reach {self.config['tau_coverage']*100:.0f}% coverage...")
+    from rasterio.features import geometry_mask as _geometry_mask
 
-    
+    gov_name_col = 'shapeName' if 'shapeName' in gov_wgs.columns else gov_wgs.columns[0]
+    gov_cells = {}
+    for _, gov_row in gov_wgs.iterrows():
+        gov_label = str(gov_row[gov_name_col])
+        try:
+            cell_mask = _geometry_mask([gov_row.geometry], out_shape=pop_arr.shape,
+                                       transform=transform, invert=True).ravel()
+        except Exception:
+            continue
+        gov_population = float(pop_flat[cell_mask].sum())
+        if gov_population > 0:
+            gov_cells[gov_label] = (cell_mask, gov_population)
 
-    while int(pop_flat[covered_flat].sum()) < target_pop:
+    if not gov_cells:
+        print("    Warning: no governorate raster masks could be built; "
+              "falling back to the national target.")
 
-        new_cover = masks & (~covered_flat)
+    facility_govs = temp_fac[gov_col].astype(str).values
+    exhausted = set()
 
-        pop_gains = (new_cover * pop_flat).sum(axis=1, dtype='float64')
+    def _governorate_shortfalls():
+        """Population still needed in each governorate that is below tau."""
+        pending = []
+        for label, (cell_mask, gov_population) in gov_cells.items():
+            if label in exhausted:
+                continue
+            covered_here = float(pop_flat[cell_mask & covered_flat].sum())
+            if covered_here / gov_population < tau:
+                pending.append((gov_population * tau - covered_here, label))
+        pending.sort(reverse=True)
+        return pending
 
-        
+    while True:
+        pending = _governorate_shortfalls()
+        if not pending:
+            break
+        shortfall, gov_label = pending[0]
 
-        already = (masks & covered_flat).sum(axis=1, dtype='float64')
+        candidates = np.where((facility_govs == gov_label) & (~selected_mask))[0]
+        if len(candidates) == 0:
+            exhausted.add(gov_label)
+            print(f"      {gov_label}: no unselected facilities remain "
+                  f"({shortfall:,.0f} people short of target)")
+            continue
 
-        with np.errstate(divide='ignore', invalid='ignore'):
+        cell_mask = gov_cells[gov_label][0]
+        newly_covered = masks[candidates] & (~covered_flat)
+        # Gain is counted inside this governorate only; spill into neighbours is
+        # real coverage but does not advance this governorate's target.
+        local_gains = ((newly_covered & cell_mask) * pop_flat).sum(axis=1, dtype='float64')
 
-            overlap_frac = np.where(cov_totals > 0, already / cov_totals, 0.0)
-
-        
-
+        candidate_clusters = clusters[candidates]
         if CLIMATE_DIVERSITY_ON:
-
-            cc = np.zeros_like(clusters, dtype=float)
-
-            valid = (clusters >= 0) & (clusters < CLIMATE_K)
-
-            cc[valid] = cluster_counts[clusters[valid]]
-
-            
-
-            need_bins = (cluster_counts < CLIMATE_MIN_PER_CLUSTER) if CLIMATE_MIN_PER_CLUSTER > 0 else np.zeros(CLIMATE_K, dtype=bool)
-
-            needs = np.zeros_like(cc, dtype=bool)
-
-            needs[valid] = need_bins[clusters[valid]]
-
-            
-
+            counts_here = np.zeros(len(candidates), dtype=float)
+            valid = (candidate_clusters >= 0) & (candidate_clusters < CLIMATE_K)
+            counts_here[valid] = cluster_counts[candidate_clusters[valid]]
             total_sel = max(1, int(cluster_counts.sum()))
-
-            freq = np.zeros_like(cc)
-
-            freq[valid] = cc[valid] / total_sel
-
-            clim_reward = np.zeros_like(cc, dtype=float)
-
-            clim_reward[needs] = 10.0
-
-            mask_else = valid & (~needs)
-
-            clim_reward[mask_else] = 1.0 / np.maximum(freq[mask_else], 1e-6)
-
+            freq = np.zeros(len(candidates))
+            freq[valid] = counts_here[valid] / total_sel
+            clim_reward = np.zeros(len(candidates), dtype=float)
+            clim_reward[valid] = 1.0 / np.maximum(freq[valid], 1e-6)
         else:
+            clim_reward = np.zeros(len(candidates), dtype=float)
 
-            clim_reward = np.zeros(len(temp_fac), dtype=float)
+        gov_population = gov_cells[gov_label][1]
+        score = (WEIGHT_COVERAGE * local_gains
+                 + WEIGHT_CLIMATE * clim_reward
+                 + WEIGHT_PATIENT_VOLUME * patient_norm[candidates] * gov_population)
+        score[local_gains <= 0] = -np.inf
 
-            needs = np.zeros(len(temp_fac), dtype=bool)
+        best_local = int(np.argmax(score))
+        if not np.isfinite(score[best_local]) or local_gains[best_local] <= 0:
+            exhausted.add(gov_label)
+            covered_here = float(pop_flat[cell_mask & covered_flat].sum())
+            print(f"      {gov_label}: stalled at {100.0*covered_here/gov_population:.1f}%; "
+                  f"no remaining facility adds population there")
+            continue
 
-            need_bins = np.zeros(CLIMATE_K, dtype=bool)
-
-        
-
-        score = (WEIGHT_COVERAGE * pop_gains.astype('float64')
-
-                 - WEIGHT_OVERLAP_PENALTY * overlap_frac.astype('float64') * total_pop_flat
-
-                 + WEIGHT_CLIMATE * clim_reward.astype('float64')
-
-                 + WEIGHT_PATIENT_VOLUME * patient_norm * total_pop_flat)
-
-        
-
-        score[selected_mask] = -np.inf
-
-        score[cov_totals == 0] = -np.inf
-
-        
-
-        if CLIMATE_DIVERSITY_ON and CLIMATE_MIN_PER_CLUSTER > 0 and need_bins.any():
-
-            score[~needs] = -np.inf
-
-        
-
-        best_idx = int(np.argmax(score))
-
-        best_score = float(score[best_idx])
-
-
-
-        # Check if we have sufficient coverage (driven by scoring model)
-
-        coverage_pct = 100.0 * int(pop_flat[covered_flat].sum()) / max(1, total_pop_flat)
-
-        tau_threshold = self.config['tau_coverage'] * 100.0  # Use configured TAU
-        if coverage_pct >= tau_threshold:
-
-            # Stop when tau coverage reached (number of HSAs emerges from scoring)
-
-            print(f"    Governorate mode: {len(chosen_idx)} HSAs, coverage: {coverage_pct:.1f}%")
-
-            break
-
-
-
-        if not np.isfinite(best_score) or best_score <= 0.0:
-
-            print("    No further gain possible at this radius.")
-
-            break
-
-
-
+        best_idx = int(candidates[best_local])
         chosen_idx.append(best_idx)
-
-        chosen_scores.append(best_score)  # Save the composite score
-
-        covered_flat |= new_cover[best_idx, :]
-
+        chosen_scores.append(float(score[best_local]))
+        covered_flat |= newly_covered[best_local, :]
         selected_mask[best_idx] = True
 
-        
-
         bc = int(clusters[best_idx])
-
         if 0 <= bc < CLIMATE_K:
-
             cluster_counts[bc] += 1
 
-        
+    # Report where every governorate landed.
+    print(f"    Phase 2 complete: {len(chosen_idx)} HSAs")
+    met = 0
+    for label, (cell_mask, gov_population) in sorted(gov_cells.items()):
+        pct = 100.0 * float(pop_flat[cell_mask & covered_flat].sum()) / gov_population
+        met += pct >= tau * 100.0
+        flag = '' if pct >= tau * 100.0 else '   [below target]'
+        print(f"      {label:<12s} {pct:5.1f}%{flag}")
+    print(f"    Governorates at or above {tau*100:.0f}%: {met}/{len(gov_cells)}")
+    if exhausted:
+        print(f"    Unreachable with the available facilities: {', '.join(sorted(exhausted))}")
 
-        if len(chosen_idx) % 5 == 0:
+    # The per-governorate loop above is the stopping rule, so the selection it
+    # produced is the answer. National coverage is reported for comparability
+    # with the other modes, not used as a gate.
+    cur_pop = float(pop_flat[covered_flat].sum())
+    coverage_pct = 100.0 * cur_pop / max(1.0, total_pop_flat)
+    print(f"    Governorate TAU mode: {len(chosen_idx)} HSAs, "
+          f"{coverage_pct:.1f}% of the national population covered")
+    print(f"    Governorates represented: {len(gov_covered)}/{len(unique_govs)}")
 
-            cur = int(pop_flat[covered_flat].sum())
+    if not chosen_idx:
+        print("  Warning: no facilities selected; returning all facilities with adaptive radii.")
+        selected = temp_fac.copy()
+        selected['composite_score'] = 0.0
+        return selected
 
-            pct = 100.0 * cur / max(1, total_pop_flat)
-
-            print(f"    Selected {len(chosen_idx)} total; {pct:.1f}% of total population covered.")
-
-    
-
-    # Check if target achieved (Issue #6: Use count-based termination like fewest/footprint)
-
-    cur_pop = int(pop_flat[covered_flat].sum())
-
-    coverage_pct = 100.0 * cur_pop / max(1, total_pop_flat)
-
-    n_facilities = len(chosen_idx)
-
-
-
-    # Governorate mode: Stop when tau coverage reached with all governorates represented
-
-    # Number of HSAs emerges from scoring model
-
-    if n_facilities > 0 and len(gov_covered) >= len(unique_govs):
-
-        # All governorates covered - now check coverage
-
-        tau_threshold = self.config['tau_coverage'] * 100.0  # Use configured TAU
-        if coverage_pct >= tau_threshold:
-
-            print(f"    [ACCEPTED] {n_facilities} HSAs, coverage: {coverage_pct:.1f}%")
-
-            print(f"    Governorates covered: {len(gov_covered)}/{len(unique_govs)}")
-
-            selected = temp_fac.iloc[chosen_idx].copy()
-
-
-
-            # Radii already assigned adaptively before mask building
-
-            # Assign composite scores to selected facilities
-
-            selected['composite_score'] = chosen_scores
-
-
-
-            return selected
-
-
-
-    # If we got here, coverage target not reached
-    print(f"    Coverage insufficient ({100.0*cur_pop/max(1,target_pop):.1f}% reached, target was {tau_threshold:.0f}%)")
-
-    
-
-    # Fallback - return all facilities with adaptive radii
-
-    print("  Warning: Could not achieve target coverage; returning all selected facilities.")
-
-    selected = temp_fac.iloc[chosen_idx].copy() if len(chosen_idx) > 0 else temp_fac.copy()
-
-    selected['composite_score'] = chosen_scores if len(chosen_scores) > 0 else [0.0] * len(selected)
-
+    selected = temp_fac.iloc[chosen_idx].copy()
+    selected['composite_score'] = chosen_scores
     return selected
-
 
 
 def _optimize_governorate_fewest_method(self, fac, pop_arr, transform, target_pop, governorates_gdf):
