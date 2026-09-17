@@ -56,9 +56,17 @@ def main():
     ap.add_argument('--threshold', type=float, default=0.80)
     ap.add_argument('--population', action='store_true',
                     help='measure overlap on WorldPop cells instead of circle area')
+    ap.add_argument('--version', default=None,
+                    help='restrict to one boundary version (e.g. v7). Only v7 is '
+                         'built now, so superseded v6/v8 bundles left in the '
+                         'directory otherwise report failures that no longer '
+                         'correspond to anything the pipeline produces.')
     args = ap.parse_args()
 
-    files = sorted(Path(args.out_dir).glob('*_hsas_v*.geojson'))
+    pattern = f"*_hsas_{args.version}.geojson" if args.version else "*_hsas_v*.geojson"
+    files = sorted(Path(args.out_dir).glob(pattern))
+    # *_circles.geojson are pre-clipping intermediates, not delineations.
+    files = [f for f in files if '_circles' not in f.name]
     if not files:
         print(f"No *_hsas_v*.geojson found in {args.out_dir}", file=sys.stderr)
         return 2
