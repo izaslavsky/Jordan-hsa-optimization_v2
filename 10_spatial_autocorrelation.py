@@ -74,9 +74,19 @@ def load_facility_coordinates(data_dir, network):
     return fac_df
 
 
-def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7"):
+def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7", target_col=None):
     """Load HSA modeling dataset."""
-    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
+    # The modeling dataset lives under the disease that produced it, while
+    # out_dir stays the run root so shared inputs resolve from there. The
+    # disease is recovered from target_col (e.g. diarrheal_diseases_count_adjusted),
+    # which every caller already threads through; the flat legacy path is
+    # accepted as a fallback.
+    _root = Path(out_dir)
+    if target_col and target_col.endswith('_count_adjusted'):
+        _slug = target_col[:-len('_count_adjusted')]
+        if (_root / _slug / 'modeling').is_dir():
+            _root = _root / _slug
+    hsa_file = _root / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     return pd.read_csv(hsa_file)
 
 
@@ -267,7 +277,7 @@ def run_spatial_autocorrelation_analysis(data_dir, out_dir, network, hsa_mode, t
     print("="*80)
 
     # Load data
-    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
+    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
     fac_df = load_facility_coordinates(data_dir, network)
 
     # Get HSA names/ids and their coordinates
@@ -518,6 +528,7 @@ def main():
     parser.add_argument('--out-dir', default=DEFAULT_PIPELINE_OUT_DIR)
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_spatial_autocorrelation'))
     parser.add_argument('--target-col', default=None)
+    parser.add_argument('--disease-focus', default=None, help='Disease-group focus; resolved to the outcome column via the authoritative table, never hardcoded')
     parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
                         help="HSA boundary version (v6, v7, v8)")
 
@@ -532,7 +543,10 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.target_col is None:
-        args.target_col = 'diarrheal_count_adjusted' if args.network == 'INF' else 'hypertension_count_adjusted'
+        if not args.disease_focus:
+            parser.error('--target-col or --disease-focus is required (resolved to the outcome column; no hardcoded default)')
+        from disease_focus import canonical_group, weekly_outcome_col
+        args.target_col = weekly_outcome_col(canonical_group(args.network, args.disease_focus))
 
     results = run_spatial_autocorrelation_analysis(
         data_dir, out_dir, args.network, args.hsa_mode, args.target_col, output_dir, args.boundary_version

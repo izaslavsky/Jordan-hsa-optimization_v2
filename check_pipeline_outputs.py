@@ -44,11 +44,15 @@ NEEDS_DAILY  = {("INF", "footprint")}
 # an output directory; INF-fewest is kept in its own. Checking a combination
 # against the wrong directory reports another mode's climate as foreign, which
 # is true but useless, so --all uses this map.
-HOME_DIR = {("INF", "fewest"): "out_inf_fewest_v7"}
+HOME_DIR = {
+    ("INF", "footprint"): "out_INF_footprint_v7",
+    ("INF", "fewest"):    "out_inf_fewest_v7",
+    ("NCD", "footprint"): "out_NCD_footprint_v7",
+}
 
 
 def home_of(network, mode):
-    return HOME_DIR.get((network, mode), "out")
+    return HOME_DIR.get((network, mode), "out")  # noqa: hardcode - fallback for unmapped combos
 
 OK, WARN, FAIL = "ok", "warn", "FAIL"
 
@@ -78,6 +82,91 @@ class Report:
             if detail:
                 for line in str(detail).splitlines():
                     print(f"          {line}")
+
+
+def disease_subdir(out):
+    """Relative prefix of the single disease directory in a run, if present.
+
+    A run holds one disease per pass in practice; when several are present the
+    caller is checking a specific one, so the prefix is left empty and the flat
+    layout is used.
+    """
+    subs = [d for d in out.iterdir()
+            if d.is_dir() and (d / "modeling").is_dir()] if out.exists() else []
+    return f"{subs[0].name}/" if len(subs) == 1 else ""
+
+
+def newest(paths):
+    """Modification time of the most recently written path, or None."""
+    times = [q.stat().st_mtime for q in paths if q.exists()]
+    return max(times) if times else None
+
+
+def stamp(t):
+    import datetime
+    return datetime.datetime.fromtimestamp(t).strftime("%m-%d %H:%M") if t else "absent"
+
+
+def check_freshness(rep, out, network, mode, version, combo):
+    """
+    Every derived artefact must be newer than everything it was built from.
+
+    Matching anchor names is not enough. A dataset rebuilt from an old
+    allocation, or from climate that was re-exported afterwards, keeps exactly
+    the right anchors and is still wrong. Only the build order shows it.
+    """
+    geo = out / f"{network}_{mode}_hsas_{version}.geojson"
+    alloc = out / f"{network}_{mode}_hsa_populations_probabilistic_{version}.csv"
+    pixels = out / f"pixel_allocations_{network}_{mode}_{version}.csv"
+    wclim = list((out / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{version.upper()}"
+                  / "FINAL_HSA_CLIMATE").glob(f"{network}_HSA_*.csv"))
+    dclim = list((out / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_{version.upper()}")
+                 .glob(f"{network}_HSA_*_daily.csv"))
+    dsub = disease_subdir(out)
+    wds = out / f"{dsub}modeling/{network}_{mode}_modeling_dataset_{version}.csv"
+    dds = out / f"{dsub}modeling/{network}_{mode}_daily_modeling_dataset_{version}.csv"
+
+    t_geo, t_alloc = newest([geo]), newest([alloc, pixels])
+    t_w, t_d = newest(wclim), newest(dclim)
+
+    deps = [
+        ("allocation", alloc, [("delineation", t_geo)]),
+    ]
+    if combo in NEEDS_WEEKLY:
+        deps.append(("weekly modeling dataset", wds,
+                     [("delineation", t_geo), ("allocation", t_alloc),
+                      ("weekly climate", t_w)]))
+    if combo in NEEDS_DAILY:
+        deps.append(("daily modeling dataset", dds,
+                     [("delineation", t_geo), ("allocation", t_alloc),
+                      ("daily climate", t_d)]))
+
+    for label, target, inputs in deps:
+        t = newest([target])
+        if t is None:
+            rep.add(WARN, f"freshness: {label} not built yet")
+            continue
+        older = [(n, ts) for n, ts in inputs if ts and t < ts]
+        if older:
+            detail = "\n".join(f"built {stamp(t)}, but {n} is {stamp(ts)}"
+                                for n, ts in older)
+            rep.add(FAIL, f"freshness: {label} predates its inputs", detail)
+        else:
+            rep.add(OK, f"freshness: {label} newer than all inputs ({stamp(t)})")
+
+    # model result trees must postdate the dataset they were fit on
+    for tree, src_t, src_name in [("results_comprehensive", newest([wds]), "weekly dataset"),
+                                  ("results_ml", newest([wds]), "weekly dataset"),
+                                  ("daily_models", newest([dds]), "daily dataset")]:
+        d = out / f"{dsub}modeling/{tree}_{version}"
+        if not d.exists():
+            continue
+        t = newest(list(d.rglob("*")))
+        if t and src_t and t < src_t:
+            rep.add(FAIL, f"freshness: {tree}_{version} predates the {src_name}",
+                    f"results {stamp(t)}, {src_name} {stamp(src_t)}")
+        elif t:
+            rep.add(OK, f"freshness: {tree}_{version} newer than the {src_name}")
 
 
 def anchors_of(geojson):
@@ -173,11 +262,14 @@ def check_combo(network, mode, version, out_dir, rep):
         rep.add(OK, "daily climate: not required for this mode")
 
     # 3. allocation + modeling artefacts
+    # Disease-specific artefacts sit under the disease directory; the run root
+    # holds only what every disease shares.
+    dsub = disease_subdir(out)
     for label, rel in [
         ("allocation populations", f"{network}_{mode}_hsa_populations_probabilistic_{version}.csv"),
         ("facility assignments",   f"{network}_{mode}_facility_hsa_assignments_{version}.csv"),
-        ("weekly modeling dataset", f"modeling/{network}_{mode}_modeling_dataset_{version}.csv"),
-        ("daily modeling dataset",  f"modeling/{network}_{mode}_daily_modeling_dataset_{version}.csv"),
+        ("weekly modeling dataset", f"{dsub}modeling/{network}_{mode}_modeling_dataset_{version}.csv"),
+        ("daily modeling dataset",  f"{dsub}modeling/{network}_{mode}_daily_modeling_dataset_{version}.csv"),
     ]:
         f = out / rel
         if "daily modeling" in label and combo not in NEEDS_DAILY:
@@ -187,21 +279,34 @@ def check_combo(network, mode, version, out_dir, rep):
         rep.add(OK if f.exists() else WARN,
                 f"{label}: {'present' if f.exists() else 'not built yet'}", rel)
 
-    # 4. modeling dataset must agree with the delineation
-    md = out / f"modeling/{network}_{mode}_modeling_dataset_{version}.csv"
-    if md.exists():
-        import pandas as pd
+    # 4. every modeling dataset must agree with the delineation. Checking only
+    #    the weekly one left the daily dataset free to carry a superseded anchor
+    #    set while still reporting as "present".
+    import pandas as pd
+    for kind, rel, needed in [
+        ("weekly", f"{dsub}modeling/{network}_{mode}_modeling_dataset_{version}.csv",
+         combo in NEEDS_WEEKLY),
+        ("daily", f"{dsub}modeling/{network}_{mode}_daily_modeling_dataset_{version}.csv",
+         combo in NEEDS_DAILY),
+    ]:
+        md = out / rel
+        if not needed or not md.exists():
+            continue
         df = pd.read_csv(md, usecols=lambda c: c in ("hsa_id",))
-        if "hsa_id" in df.columns:
-            got = {norm(x) for x in df["hsa_id"].unique()}
-            bad = sorted(got - expected)
-            gone = sorted(expected - got)
-            if bad or gone:
-                rep.add(FAIL, "weekly modeling dataset disagrees with the delineation",
-                        (f"not in delineation: {bad}\n" if bad else "") +
-                        (f"absent from dataset: {gone}" if gone else ""))
-            else:
-                rep.add(OK, f"weekly modeling dataset: {len(got)} anchors, consistent")
+        if "hsa_id" not in df.columns:
+            continue
+        got = {norm(x) for x in df["hsa_id"].unique()}
+        bad = sorted(got - expected)
+        gone = sorted(expected - got)
+        if bad or gone:
+            rep.add(FAIL, f"{kind} modeling dataset disagrees with the delineation",
+                    (f"not in delineation: {bad}\n" if bad else "") +
+                    (f"absent from dataset: {gone}" if gone else ""))
+        else:
+            rep.add(OK, f"{kind} modeling dataset: {len(got)} anchors, consistent")
+
+    # 5. build order
+    check_freshness(rep, out, network, mode, version, combo)
 
 
 def main():
@@ -217,7 +322,7 @@ def main():
     rep = Report()
     if a.all:
         combos = set()
-        for out_dir in ["out", "out_inf_fewest_v7"]:
+        for out_dir in ["out"] + sorted(set(HOME_DIR.values())):
             for g in sorted(Path(out_dir).glob(f"*_hsas_{a.version}.geojson")):
                 m = re.match(rf"(INF|NCD)_(.+)_hsas_{a.version}\.geojson", g.name)
                 if m:
