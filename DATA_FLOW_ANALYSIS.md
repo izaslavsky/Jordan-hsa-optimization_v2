@@ -1,8 +1,21 @@
 # Complete Data Flow Analysis: Synthetic Data to ML Models
 
 **Purpose**: Document reproducible workflow from synthetic data to ML predictions
-**Date**: 2025-12-28
+**Date**: 2026-09-17
 **Status**: Reviewed and verified
+
+> **Paths in this document.** Every `out/...` below is written relative to the
+> directory for one run. A run is one network, optimization mode and boundary
+> version, e.g. `out_INF_footprint_v7/`, passed as `--out-dir` or `HSA_OUT_DIR`.
+> Disease-specific outputs (weekly and daily counts, modeling datasets, model
+> results, sensitivity analyses) live in a disease subdirectory within it, e.g.
+> `out_INF_footprint_v7/diarrheal_diseases/modeling/`. The delineation, gravity
+> allocation and per-HSA climate depend on network, mode and version only, so
+> they stay at the run root and are shared across diseases. `out/` itself holds
+> the delineation masters written by `HSA_FINAL.ipynb`.
+>
+> Only the v7 bundle is built by default; set `HSA_VARIANTS="v6,v7,v8"` to
+> rebuild the others.
 
 ---
 
@@ -19,7 +32,7 @@ Step 1  GEE_local_Climate_Features_by_Facilities.ipynb   [run once]
             │
             ▼
 Step 2  HSA_FINAL.ipynb                                  [run once]
-            │  → out/{NETWORK}_{mode}_hsas_{v6|v7|v8}.geojson
+            │  → out/{NETWORK}_{mode}_hsas_v7.geojson
             │    (v6: greedy | v7: +anchor QC | v8: +bubbles)
             │
             ├── (optional) compare_delineations.ipynb

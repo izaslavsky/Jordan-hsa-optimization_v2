@@ -7,6 +7,33 @@ Code and synthetic data accompanying the research paper on delineating Hospital 
 
 ---
 
+## Reproducibility
+
+Applying this pipeline to another facility network or another disease is a
+configuration change, not a code change. Disease groups, outcome column names
+and file naming are resolved at run time from the network's
+`groups_of_diagnoses` table, so nothing disease-specific is written into the
+scripts. Each network, optimization mode and boundary version writes to its own
+directory, and results for each disease are kept separate beneath it, so two
+diseases or two modes can never overwrite one another.
+
+Four checks are executable and exit non-zero on failure, so an audit is one
+command rather than an inspection:
+
+```bash
+python check_no_hardcoding.py --root .      # no hardcoded disease label or output path
+python check_hsa_overlap.py --out-dir <run> --version v7   # no near-duplicate service areas
+python check_pipeline_outputs.py --network INF --mode footprint --out-dir <run>
+python check_pipeline_outputs.py --all      # every run present
+```
+
+`check_pipeline_outputs.py` reconciles a run against its own delineation: every
+anchor has climate and no others do, every derived file is newer than the
+delineation, allocation and climate it was built from, and nothing in the
+directory predates the delineation. Matching file counts is not sufficient —
+several defects found during development produced the right number of files
+with the wrong membership.
+
 ## What is new in v2
 
 ### Three HSA algorithm variants
@@ -62,7 +89,13 @@ jordan-hsa-optimization_v2/
 │   └── hsa_metadata.csv                     JMP sanitation quality scores per HSA
 │   [WorldPop rasters not included — see Installation below]
 ├── dlnm/                            DLNM cross-basis module
-├── out/                             Runtime outputs (gitignored except .gitkeep)
+├── out/                             Delineation masters from HSA_FINAL (gitignored)
+├── out_<NETWORK>_<mode>_<version>/  One directory per run (gitignored). Holds the
+│   │                                delineation, gravity allocation and per-HSA
+│   │                                climate, which depend on network/mode/version
+│   │                                only and are shared across diseases.
+│   └── <disease_slug>/              Everything specific to one disease: counts,
+│                                    modeling datasets, model results, sensitivity
 ├── HSA_FINAL.ipynb                  HSA delineation (produces v6, v7, v8 bundles)
 ├── Population_Allocation_Probabilistic_v2.ipynb
 ├── GEE_local_Climate_Features_by_Facilities.ipynb
@@ -148,7 +181,8 @@ Copy the output `{NETWORK}_Facilities_Climate_Features_with_clusters.csv` into `
 jupyter notebook HSA_FINAL.ipynb
 ```
 
-Produces 15 boundary files (5 modes × 3 variants): `out/{NETWORK}_{mode}_hsas_{v6|v7|v8}.geojson`.
+Produces 5 boundary files, one per mode: `out/{NETWORK}_{mode}_hsas_v7.geojson`.
+Only v7 is built by default; set `HSA_VARIANTS="v6,v7,v8"` to rebuild the others.
 
 ### Step 3 — Population allocation
 

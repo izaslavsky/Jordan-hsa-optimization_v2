@@ -308,6 +308,25 @@ def check_combo(network, mode, version, out_dir, rep):
     # 5. build order
     check_freshness(rep, out, network, mode, version, combo)
 
+    # 6. nothing left over from a superseded run. Files that predate the
+    #    delineation are artefacts of an earlier one; they keep plausible names
+    #    and get picked up by globs, which is how a superseded map and a
+    #    wrong-disease count file survived in these directories.
+    skip = ("_superseded", "DRIVE_CLIMATE", "Facilities_Climate_Features",
+            "diagnosis_counts_pivot", "agentic_bundles", ".zip", ".bak", ".DS_Store")
+    t_geo = geojson.stat().st_mtime
+    leftovers = sorted(
+        str(q.relative_to(out)) for q in out.rglob("*")
+        if q.is_file()
+        and not any(k in str(q.relative_to(out)) for k in skip)
+        and q.stat().st_mtime < t_geo
+    )
+    if leftovers:
+        rep.add(FAIL, f"{len(leftovers)} file(s) predate the delineation",
+                "\n".join(leftovers[:10]))
+    else:
+        rep.add(OK, "no files predate the delineation")
+
 
 def main():
     ap = argparse.ArgumentParser()

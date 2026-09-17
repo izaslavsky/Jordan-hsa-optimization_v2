@@ -111,20 +111,56 @@ ls data/jor_ppp_2020_UNadj.tif               # WorldPop raster (if needed)
 
 ---
 
+## Output directories
+
+Each combination of network, optimization mode and boundary version gets its own
+directory, and each disease gets a subdirectory within it:
+
+```
+out/                                  delineation masters written by HSA_FINAL
+out_INF_footprint_v7/                 one run
+    INF_footprint_hsas_v7.geojson     delineation
+    pixel_allocations_*.csv           gravity allocation (~739 MB)
+    DRIVE_CLIMATE_BY_HSA_DOWNLOAD_V7/       weekly per-HSA climate
+    DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_V7/ daily per-HSA climate
+    diarrheal_diseases/               everything specific to this disease
+        modeling/  sensitivity/  textresults/
+out_inf_fewest_v7/                    a second mode, fully separate
+out_NCD_footprint_v7/                 a second network, fully separate
+```
+
+Delineation, allocation and climate depend on network, mode and version only, so
+they sit at the run root and are shared across diseases; the allocation tables
+alone are ~739 MB each, which is why they are not duplicated per disease.
+Everything downstream of the disease counts lives under the disease.
+
+Pass the directory with `--out-dir`, or set `HSA_OUT_DIR`; `run_pipeline.py`
+propagates it to every notebook and script it launches. Two modes of the same
+network must not share a directory, because the per-HSA climate filenames are
+keyed by network and anchor name, not by mode.
+
+Before and after a run:
+
+```bash
+python run_pipeline.py ... --preflight          # every input, reported at once
+python check_pipeline_outputs.py --all          # every run, reconciled and dated
+```
+
 ## Quick Start: Synthetic INF Footprint Pipeline (v7)
 
 This is the minimal run to verify the pipeline end to end:
 
 ```bash
-# Step 2: HSA delineation (all 3 variants in one run)
+# Step 2: HSA delineation (v7 only by default; HSA_VARIANTS="v6,v7,v8" for the rest)
 jupyter notebook HSA_FINAL.ipynb
 # Set NETWORK = "INF"
-# Produces: out/INF_footprint_hsas_v6.geojson, v7, v8
+# Produces: out/INF_footprint_hsas_v7.geojson (and the other four modes)
 
-# Step 3: Population allocation for v7
+# Step 3: Population allocation for v7, into this run's directory
+export HSA_OUT_DIR=out_INF_footprint_v7
 jupyter notebook Population_Allocation_Probabilistic_v2.ipynb
 # Set NETWORK="INF", HSA_MODE="footprint", BOUNDARY_VERSION="v7"
-# Produces: out/INF_footprint_facility_hsa_assignments_v7.csv
+# Produces: out_INF_footprint_v7/INF_footprint_facility_hsa_assignments_v7.csv
 
 # Step 5: Daily disease counts
 python3 generate_daily_disease_counts.py \
