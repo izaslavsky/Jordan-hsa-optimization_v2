@@ -80,14 +80,50 @@ def load_allocation_data(out_dir, network, hsa_mode, sample_size=500000, boundar
 
 
 def load_elevation_data(data_dir):
-    """Load elevation data if available."""
-    # Try to find elevation raster
-    elev_files = list(data_dir.glob('*elevation*.tif')) + list(data_dir.glob('*dem*.tif'))
+    """Load elevation data if available.
 
+    Preference order:
+      1. per-HSA SRTM statistics exported by GEE_local_HSA_Weekly_Climate_Lagged
+         (elevation_sd_m / min / max), which describe variation inside each HSA;
+      2. a DEM raster in data/;
+      3. nothing, in which case the caller must not silently substitute a
+         modelled surface.
+    """
+    import glob as _glob
+    out_dir = Path(os.environ.get("HSA_OUT_DIR",
+                                  os.environ.get("PIPELINE_OUT_DIR", "out")))
+    ver = os.environ.get("BOUNDARY_VERSION", "v7").upper()
+    net = os.environ.get("NETWORK", "INF")
+    pattern = str(out_dir / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{ver}" /
+                  "FINAL_HSA_CLIMATE" / f"{net}_HSA_*_elevation_by_week.csv")
+    files = sorted(_glob.glob(pattern))
+    if files:
+        frames = []
+        for f in files:
+            d = pd.read_csv(f)
+            keep = [c for c in ("FacilityName", "elevation_m", "elevation_sd_m",
+                                "elevation_min_m", "elevation_max_m") if c in d.columns]
+            if "elevation_sd_m" not in keep:
+                continue
+            frames.append(d[keep].drop_duplicates(subset=["FacilityName"]))
+        if frames:
+            stats = pd.concat(frames, ignore_index=True).drop_duplicates(subset=["FacilityName"])
+            print(f"  Loaded per-HSA SRTM elevation statistics for {len(stats)} HSAs")
+            return stats
+        print("  Per-HSA elevation files carry only a zonal mean (no elevation_sd_m).")
+        print("  Re-run GEE_local_HSA_Weekly_Climate_Lagged.ipynb: its elevation")
+        print("  reducer now returns stdDev/min/max alongside the mean.")
+        return None
+
+    elev_files = list(data_dir.glob('*elevation*.tif')) + list(data_dir.glob('*dem*.tif'))
     if elev_files:
-        print(f"  Found elevation file: {elev_files[0]}")
-        # Would use rasterio to read elevation
-        return None  # For now, return None and use estimation
+        print(f"  Found elevation raster: {elev_files[0]}")
+        try:
+            import rasterio  # noqa: F401
+        except ImportError:
+            print("  rasterio unavailable; cannot read it.")
+            return None
+        return None
 
     return None
 

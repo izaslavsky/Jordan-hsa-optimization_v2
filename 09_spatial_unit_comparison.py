@@ -322,21 +322,66 @@ def run_hsa_analysis(out_dir, network, hsa_mode, target_col, boundary_version="v
     return results
 
 
+def map_hsas_to_governorates(out_dir, network, hsa_mode, boundary_version):
+    """
+    hsa_id -> governorate, read from the delineation's own attribute table.
+
+    The anchors carry the governorate they sit in, so the mapping needs no
+    spatial join at this stage; it is the same attribute the optimizer used for
+    its same-governorate constraints.
+    """
+    import re as _re
+    if not HAS_SPATIAL:
+        return {}
+    geo = Path(out_dir) / f"{network}_{hsa_mode}_hsas_{boundary_version}.geojson"
+    if not geo.exists():
+        return {}
+    gdf = gpd.read_file(geo)
+    name_col = "FacilityName" if "FacilityName" in gdf.columns else "HealthFacility"
+    if "governorate" not in gdf.columns:
+        return {}
+    out = {}
+    for _, row in gdf.iterrows():
+        hid = _re.sub(r"\s+", " ", str(row[name_col])).strip().replace(" ", "_")
+        gov = str(row["governorate"]).strip()
+        if gov and gov.lower() != "nan":
+            out[hid] = gov
+    return out
+
+
 def run_governorate_analysis(data_dir, out_dir, network, hsa_mode, target_col, boundary_version="v7"):
     """Run analysis on governorate spatial units."""
     print("\n--- Governorate Spatial Units ---")
 
     # Load HSA data and aggregate to governorates
-    # In practice, this would require mapping HSAs to governorates
-    # For now, we'll use governorate-level aggregation
-
     hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
 
-    # Aggregate across all HSAs (simulate governorate-level)
-    gov_df = hsa_df.groupby(['week_number', 'week_of_year']).agg({
-        target_col: 'mean',
-        **{col: 'mean' for col in CLIMATE_FEATURES if col in hsa_df.columns}
-    }).reset_index()
+    # Aggregate to real governorates. This previously collapsed every HSA into a
+    # single national weekly mean, which made the comparison HSA-level versus
+    # national rather than HSA-level versus governorate.
+    gov_map = map_hsas_to_governorates(out_dir, network, hsa_mode, boundary_version)
+    if not gov_map:
+        print("  ERROR: no HSA->governorate mapping available; cannot aggregate "
+              "to governorates. Check that the delineation carries a "
+              "'governorate' column.")
+        return None
+
+    hsa_df = hsa_df.copy()
+    hsa_df['governorate'] = hsa_df['hsa_id'].map(gov_map)
+    unmapped = hsa_df['governorate'].isna().sum()
+    if unmapped:
+        missing = sorted(hsa_df.loc[hsa_df['governorate'].isna(), 'hsa_id'].unique())
+        print(f"  WARNING: {unmapped} rows have no governorate ({', '.join(missing[:5])})")
+        hsa_df = hsa_df.dropna(subset=['governorate'])
+
+    n_gov = hsa_df['governorate'].nunique()
+    print(f"  Aggregating {hsa_df['hsa_id'].nunique()} HSAs into {n_gov} governorates")
+
+    # Counts sum within a governorate; climate is averaged across its HSAs.
+    agg = {target_col: 'sum'}
+    agg.update({c: 'mean' for c in CLIMATE_FEATURES if c in hsa_df.columns})
+    gov_df = (hsa_df.groupby(['governorate', 'week_number', 'week_of_year'])
+                    .agg(agg).reset_index())
 
     # Prepare data
     gov_df, features = prepare_model_data(gov_df, target_col)

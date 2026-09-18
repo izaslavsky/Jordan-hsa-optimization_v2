@@ -21,6 +21,7 @@ build/
 !GEE_local_HSA_Daily_Climate.ipynb
 !GEE_local_HSA_Weekly_Climate_Lagged.ipynb
 !GEE_local_HSA_Weekly_Climate_Lagged_chunked.ipynb
+!GEE_local_HSA_Weekly_Climate_Lagged-Elevation.ipynb
 !Generate_Modeling_Dataset.ipynb
 !Generate_Daily_Modeling_Dataset.ipynb
 !run_climate_health_modeling.ipynb

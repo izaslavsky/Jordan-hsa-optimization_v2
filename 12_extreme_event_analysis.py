@@ -38,6 +38,28 @@ OUTPUT_FILE_PREFIX = ""
 TEXT_RESULTS_DIR = None
 
 
+def _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version):
+    """Locate the modeling dataset under the disease directory.
+
+    Disease-specific outputs moved beneath a per-disease folder so two diseases
+    cannot overwrite one another; the flat path is still accepted so older run
+    directories keep working.
+    """
+    out_dir = Path(out_dir)
+    name = f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
+    flat = out_dir / 'modeling' / name
+    if flat.exists():
+        return flat
+    hits = sorted(out_dir.glob(f'*/modeling/{name}'))
+    if len(hits) == 1:
+        return hits[0]
+    if len(hits) > 1:
+        raise RuntimeError(
+            f"{len(hits)} disease directories under {out_dir} hold {name}; "
+            f"pass the one you mean explicitly: {[str(h) for h in hits]}")
+    return flat
+
+
 def out_name(filename: str) -> str:
     return f"{OUTPUT_FILE_PREFIX}_{filename}" if OUTPUT_FILE_PREFIX else filename
 
@@ -73,7 +95,7 @@ EXISTING_EXTREMES = [
 
 def load_modeling_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load the modeling dataset."""
-    file_path = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
+    file_path = _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version)
     df = pd.read_csv(file_path)
     print(f"Loaded {len(df)} rows, {len(df.columns)} columns")
     print(f"HSAs: {df['hsa_id'].nunique()}, Weeks: {df['week_number'].nunique()}")
@@ -613,6 +635,7 @@ def main():
     parser.add_argument('--output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'analysis_extreme_events'))
     parser.add_argument('--text-output-dir', default=str(Path(DEFAULT_PIPELINE_OUT_DIR) / 'textresults'))
     parser.add_argument('--target-col', default=None)
+    parser.add_argument('--disease-focus', default=None, help='Disease-group focus; resolved to the outcome column via the authoritative table, never hardcoded')
     parser.add_argument('--boundary-version', default=os.environ.get("BOUNDARY_VERSION", os.environ.get("PIPELINE_VERSION", "v7")),
                         help="HSA boundary version (v6, v7, v8)")
 
@@ -628,7 +651,10 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if args.target_col is None:
-        args.target_col = 'diarrheal_count_adjusted' if args.network == 'INF' else 'hypertension_count_adjusted'
+        if not args.disease_focus:
+            parser.error('--target-col or --disease-focus is required (resolved to the outcome column; no hardcoded default)')
+        from disease_focus import canonical_group, weekly_outcome_col
+        args.target_col = weekly_outcome_col(canonical_group(args.network, args.disease_focus))
 
     print("="*80)
     print("EXTREME EVENT ANALYSIS")
