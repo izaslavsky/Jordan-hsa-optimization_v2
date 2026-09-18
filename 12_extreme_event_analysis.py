@@ -38,28 +38,6 @@ OUTPUT_FILE_PREFIX = ""
 TEXT_RESULTS_DIR = None
 
 
-def _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version):
-    """Locate the modeling dataset under the disease directory.
-
-    Disease-specific outputs moved beneath a per-disease folder so two diseases
-    cannot overwrite one another; the flat path is still accepted so older run
-    directories keep working.
-    """
-    out_dir = Path(out_dir)
-    name = f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
-    flat = out_dir / 'modeling' / name
-    if flat.exists():
-        return flat
-    hits = sorted(out_dir.glob(f'*/modeling/{name}'))
-    if len(hits) == 1:
-        return hits[0]
-    if len(hits) > 1:
-        raise RuntimeError(
-            f"{len(hits)} disease directories under {out_dir} hold {name}; "
-            f"pass the one you mean explicitly: {[str(h) for h in hits]}")
-    return flat
-
-
 def out_name(filename: str) -> str:
     return f"{OUTPUT_FILE_PREFIX}_{filename}" if OUTPUT_FILE_PREFIX else filename
 
@@ -95,7 +73,7 @@ EXISTING_EXTREMES = [
 
 def load_modeling_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load the modeling dataset."""
-    file_path = _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version)
+    file_path = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     df = pd.read_csv(file_path)
     print(f"Loaded {len(df)} rows, {len(df.columns)} columns")
     print(f"HSAs: {df['hsa_id'].nunique()}, Weeks: {df['week_number'].nunique()}")

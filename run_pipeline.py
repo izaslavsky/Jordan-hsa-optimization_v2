@@ -464,8 +464,14 @@ def main():
         _geo = OUT_DIR / f"{NETWORK}_{HSA_MODE}_hsas_{BOUNDARY_VERSION}.geojson"
         checks.append(("HSA boundaries geojson", _geo.exists(), _geo))
     if any(n >= 3 for n in selected_nums):
+        # Step 2 writes this. Requiring it when step 2 is part of the same run
+        # fails a legitimate fresh run before anything has had a chance to
+        # produce it, so only insist on it when step 2 is not selected.
         _pa = OUT_DIR / f"pixel_allocations_{NETWORK}_{HSA_MODE}_{BOUNDARY_VERSION}.csv"
-        checks.append(("pixel allocations", _pa.exists(), _pa))
+        if 2 not in selected_nums:
+            checks.append(("pixel allocations", _pa.exists(), _pa))
+        else:
+            checks.append(("pixel allocations (step 2 will write it)", True, _pa))
         _wk = OUT_DIR / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{BOUNDARY_VERSION.upper()}" / "FINAL_HSA_CLIMATE"
         checks.append(("weekly climate dir", _wk.exists() and any(_wk.glob("*.csv")), _wk))
     if any(n >= 5 for n in selected_nums):

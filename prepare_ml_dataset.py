@@ -486,11 +486,7 @@ def main():
                                / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_{args.boundary_version.upper()}"
                                / "FINAL_HSA_CLIMATE")
     if not args.output_dir:
-        # Disease-scoped: --out-dir stays the run root so climate and allocation
-        # (shared across diseases) resolve unchanged, while the dataset lands
-        # under the disease that produced it.
-        from disease_focus import disease_dir
-        args.output_dir = str(disease_dir(args.out_dir, NETWORK, args.disease_focus) / "modeling")
+        args.output_dir = str(Path(args.out_dir) / "modeling")
     CLIMATE_DIR = Path(args.climate_dir)
     OUTPUT_DIR = Path(args.output_dir)
     OUTPUT_DIR.mkdir(exist_ok=True, parents=True)

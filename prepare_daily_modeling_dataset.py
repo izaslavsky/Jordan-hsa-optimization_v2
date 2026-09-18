@@ -144,11 +144,7 @@ def main():
                    else pipeline_out / f"{NETWORK}_{HSA_MODE}_daily_{FOCUS_SLUG}_{ver}.csv")
     CLIMATE_DIR = (Path(args.climate_dir) if args.climate_dir
                    else pipeline_out / f"DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_{ver.upper()}")
-    # Disease-scoped, for the same reason as the weekly builder: the run root
-    # holds what every disease shares, the disease directory holds what it does not.
-    from disease_focus import disease_dir
-    OUT_DIR  = (Path(args.output_dir) if args.output_dir
-                else disease_dir(pipeline_out, NETWORK, args.disease_focus) / "modeling")
+    OUT_DIR  = Path(args.output_dir) if args.output_dir else pipeline_out / "modeling"
     OUT_FILE = OUT_DIR / f"{NETWORK}_{HSA_MODE}_daily_modeling_dataset_{ver}.csv"
 
     calendar_path = (Path(args.calendar_file) if args.calendar_file

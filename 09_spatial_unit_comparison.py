@@ -109,19 +109,9 @@ def load_governorates(data_dir):
     raise FileNotFoundError("Governorate file not found")
 
 
-def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7", target_col=None):
+def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load HSA modeling dataset."""
-    # The modeling dataset lives under the disease that produced it, while
-    # out_dir stays the run root so shared inputs resolve from there. The
-    # disease is recovered from target_col (e.g. diarrheal_diseases_count_adjusted),
-    # which every caller already threads through; the flat legacy path is
-    # accepted as a fallback.
-    _root = Path(out_dir)
-    if target_col and target_col.endswith('_count_adjusted'):
-        _slug = target_col[:-len('_count_adjusted')]
-        if (_root / _slug / 'modeling').is_dir():
-            _root = _root / _slug
-    hsa_file = _root / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
+    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     if hsa_file.exists():
         return pd.read_csv(hsa_file)
     raise FileNotFoundError(f"HSA modeling dataset not found: {hsa_file}")
@@ -298,7 +288,7 @@ def run_hsa_analysis(out_dir, network, hsa_mode, target_col, boundary_version="v
     """Run analysis on HSA spatial units."""
     print("\n--- HSA Spatial Units (FOOTPRINT) ---")
 
-    df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
+    df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
 
     # Prepare data with per-HSA AR lags
     df, features = prepare_model_data(df, target_col, group_col='hsa_id')
@@ -354,7 +344,7 @@ def run_governorate_analysis(data_dir, out_dir, network, hsa_mode, target_col, b
     print("\n--- Governorate Spatial Units ---")
 
     # Load HSA data and aggregate to governorates
-    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
+    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
 
     # Aggregate to real governorates. This previously collapsed every HSA into a
     # single national weekly mean, which made the comparison HSA-level versus
@@ -424,7 +414,7 @@ def run_comparison_analysis(data_dir, out_dir, network, hsa_mode, target_col, ou
     # For now, we'll compare aggregation levels
 
     print("\n--- Country-Level Aggregation (Voronoi proxy) ---")
-    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
+    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
     country_df = hsa_df.groupby(['week_number', 'week_of_year']).agg({
         target_col: 'sum',  # Total for country
         **{col: 'mean' for col in CLIMATE_FEATURES if col in hsa_df.columns}
@@ -447,7 +437,7 @@ def run_comparison_analysis(data_dir, out_dir, network, hsa_mode, target_col, ou
 
     # 4. Per-facility analysis (no spatial aggregation)
     print("\n--- Per-Facility (No Spatial Aggregation) ---")
-    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version, target_col)
+    hsa_df = load_hsa_data(out_dir, network, hsa_mode, boundary_version)
 
     # Use data as-is (each HSA separately, with per-HSA AR lags)
     hsa_df, features = prepare_model_data(hsa_df, target_col, group_col='hsa_id')

@@ -118,31 +118,9 @@ def load_facility_data(data_dir, network):
     return fac_df
 
 
-def _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version):
-    """Locate the modeling dataset under the disease directory.
-
-    Disease-specific outputs moved beneath a per-disease folder so two diseases
-    cannot overwrite one another; the flat path is still accepted so older run
-    directories keep working.
-    """
-    out_dir = Path(out_dir)
-    name = f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
-    flat = out_dir / 'modeling' / name
-    if flat.exists():
-        return flat
-    hits = sorted(out_dir.glob(f'*/modeling/{name}'))
-    if len(hits) == 1:
-        return hits[0]
-    if len(hits) > 1:
-        raise RuntimeError(
-            f"{len(hits)} disease directories under {out_dir} hold {name}; "
-            f"pass the one you mean explicitly: {[str(h) for h in hits]}")
-    return flat
-
-
 def load_hsa_data(out_dir, network, hsa_mode, boundary_version="v7"):
     """Load HSA modeling dataset."""
-    hsa_file = _modeling_dataset_path(out_dir, network, hsa_mode, boundary_version)
+    hsa_file = out_dir / 'modeling' / f'{network}_{hsa_mode}_modeling_dataset_{boundary_version}.csv'
     return pd.read_csv(hsa_file)
 
 
