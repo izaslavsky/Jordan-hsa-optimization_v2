@@ -288,6 +288,8 @@ modeling.ipynb            Track A: DLNM (explanatory)
 
 Weekly climate CSVs (CHIRPS + ERA5-Land + TerraClimate) and daily climate CSVs (CHIRPS + ERA5-Land) are not committed to the repository. Run the corresponding GEE notebook (Step 4) with the desired `BOUNDARY_VERSION` to generate them. The chunked variant `GEE_local_HSA_Weekly_Climate_Lagged_chunked.ipynb` is provided for runs that exceed GEE export memory limits.
 
+The weekly export also emits per-HSA elevation statistics from SRTM: mean, standard deviation, min, max and the 25th/50th/75th percentiles, written as one row per HSA (`*_elevation_by_week.csv`). The spread, not just the mean, is what the within-HSA heterogeneity analysis needs, since an HSA spanning the Jordan Valley and the highlands has a far larger internal climate gradient than a compact urban one. Elevation is produced by the same notebook as the other climate families; there is no separate elevation notebook. To export elevation alone, set `USE_CHIRPS`, `USE_ERA5_HOURLY` and `USE_ERA5_EVP` to `False` and leave `INCLUDE_ELEVATION = True`.
+
 ---
 
 ## Documentation

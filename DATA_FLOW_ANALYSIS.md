@@ -7,12 +7,12 @@
 > **Paths in this document.** Every `out/...` below is written relative to the
 > directory for one run. A run is one network, optimization mode and boundary
 > version, e.g. `out_INF_footprint_v7/`, passed as `--out-dir` or `HSA_OUT_DIR`.
-> Disease-specific outputs (weekly and daily counts, modeling datasets, model
-> results, sensitivity analyses) live in a disease subdirectory within it, e.g.
-> `out_INF_footprint_v7/diarrheal_diseases/modeling/`. The delineation, gravity
-> allocation and per-HSA climate depend on network, mode and version only, so
-> they stay at the run root and are shared across diseases. `out/` itself holds
-> the delineation masters written by `HSA_FINAL.ipynb`.
+> Outputs are written flat within that run directory, e.g.
+> `out_INF_footprint_v7/modeling/`. One run covers one disease focus, selected
+> with `--disease-focus`; to analyse a second disease, use a separate run
+> directory rather than a subdirectory, so the two cannot overwrite each
+> other's datasets. `out/` itself holds the delineation masters written by
+> `HSA_FINAL.ipynb`.
 >
 > Only the v7 bundle is built by default; set `HSA_VARIANTS="v6,v7,v8"` to
 > rebuild the others.
@@ -253,6 +253,24 @@ out/DRIVE_CLIMATE_BY_HSA_DOWNLOAD/FINAL_HSA_CLIMATE/
 Each CSV structure:
 - Rows: 84 (one per week, 2022-06-27 to 2024-01-29)
 - Columns: `FacilityName`, `week_start`, [climate variables with lags like `P_mean_d-1`, `T_max_week`, etc.]
+
+`elevation_by_week.csv` is the exception. SRTM is static, so the exporter writes
+a single row per HSA rather than repeating one value 84 times, and it reduces
+the DEM with a combined reducer instead of a mean:
+
+| Column | Meaning |
+| --- | --- |
+| `elevation_m` | mean elevation inside the HSA polygon |
+| `elevation_sd_m` | standard deviation, i.e. how much terrain varies within the HSA |
+| `elevation_min_m`, `elevation_max_m` | range inside the polygon |
+| `elevation_p25_m`, `elevation_p50_m`, `elevation_p75_m` | quartiles of the within-HSA distribution |
+
+The spread matters because a service area spanning the Jordan Valley and the
+highlands has a very different internal climate gradient than a compact urban
+one, and a single mean cannot express that. `16_within_hsa_heterogeneity.py`
+reads `elevation_sd_m`, `elevation_min_m` and `elevation_max_m` directly; when
+they are absent it reports the gap rather than substituting a modelled
+elevation surface.
 
 **Command**:
 ```

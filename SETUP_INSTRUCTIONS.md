@@ -243,7 +243,10 @@ This will open Jupyter in your web browser at `http://localhost:8888`
 1. `GEE_local_Climate_Features_by_Facilities.ipynb` — extract climate by facility (required by HSA_FINAL)
 2. `HSA_FINAL.ipynb` — delineate boundaries (all three variants: v6, v7, v8)
 3. `Population_Allocation_Probabilistic_v2.ipynb` — assign population to HSAs; set `BOUNDARY_VERSION`
-4. `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` — aggregate weekly climate per HSA polygon
+4. `GEE_local_HSA_Weekly_Climate_Lagged.ipynb` — aggregate weekly climate per HSA polygon,
+   including per-HSA SRTM elevation statistics (mean, sd, min, max, quartiles).
+   The `USE_*` / `INCLUDE_ELEVATION` switches select families, so elevation can be
+   re-exported on its own without a separate notebook.
 5. `Generate_Modeling_Dataset.ipynb` — build `{NETWORK}_{MODE}_modeling_dataset_{VERSION}.csv`
 6. `run_climate_health_modeling.ipynb` — train and evaluate weekly models
 

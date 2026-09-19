@@ -14,7 +14,7 @@ and produced by the GEE notebook into the isolated dir separately.
 
 Usage:
     python stage_isolated_run.py --network INF --hsa-mode fewest \
-        --boundary-version v7 --from out --to out_inf_fewest_v7
+        --boundary-version v7 --from out --to out_INF_fewest_v7
     # add --check to report without copying
 """
 from __future__ import annotations
@@ -37,6 +37,10 @@ def required_items(net: str, mode: str, ver: str) -> list[str]:
         f"{net}_{mode}_facility_allocations_probabilistic_{ver}.csv",
         f"{net}_{mode}_hsa_populations_probabilistic_{ver}.csv",
         f"{net}_Facilities_Climate_Features_with_clusters.csv",   # facility climate (GEE step A)
+        f"{net}_footprint_diagnosis_counts_pivot.csv",            # patient volumes per facility
+        # The pivot is network-scoped and mode-agnostic (identical bytes across
+        # run directories), but the gravity sensitivity needs it for facility
+        # attractiveness and now fails rather than substituting random volumes.
     ]
 
 

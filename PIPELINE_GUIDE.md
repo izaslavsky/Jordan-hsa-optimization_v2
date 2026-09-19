@@ -125,7 +125,7 @@ out_INF_footprint_v7/                 one run
     DRIVE_CLIMATE_BY_HSA_DOWNLOAD_DAILY_V7/ daily per-HSA climate
     diarrheal_diseases/               everything specific to this disease
         modeling/  sensitivity/  textresults/
-out_inf_fewest_v7/                    a second mode, fully separate
+out_INF_fewest_v7/                    a second mode, fully separate
 out_NCD_footprint_v7/                 a second network, fully separate
 ```
 
@@ -295,10 +295,29 @@ For other versions:
 
 ```bash
 jupyter notebook GEE_local_HSA_Weekly_Climate_Lagged.ipynb
-# Set NETWORK = "INF", BOUNDARY_VERSION = "v7"  (or v8)
+# Set NETWORK = "INF", MODE = "footprint", BOUNDARY_VERSION = "v7"
+# OUT_DIR is derived from those three (out_INF_footprint_v7, falling back to
+# out/) and the run stops if that delineation is missing, so there is no
+# directory to set by hand.
 # After GEE export completes, copy CSV files to:
 # out/DRIVE_CLIMATE_BY_HSA_DOWNLOAD/FINAL_HSA_CLIMATE/
 ```
+
+This notebook exports every climate family, elevation included. The `USE_*` and
+`INCLUDE_ELEVATION` switches select which families run, so an elevation-only
+re-export is a configuration of this notebook rather than a separate one:
+
+```bash
+# elevation only (e.g. to add the within-HSA spread to an existing run)
+# USE_CHIRPS = USE_ERA5_HOURLY = USE_ERA5_EVP = False
+# INCLUDE_ELEVATION = True
+```
+
+Elevation is reduced with mean + stdDev + minMax + percentiles rather than a
+mean alone, and is written as one row per HSA because SRTM is static. The
+standard deviation is what `16_within_hsa_heterogeneity.py` uses to measure
+terrain variation inside each service area; without it that analysis reports a
+gap rather than falling back to a modelled surface.
 
 **Large-network or chunked export:**
 

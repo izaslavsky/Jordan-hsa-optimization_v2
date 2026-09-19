@@ -12,7 +12,10 @@ delineation parameter matches the canonical run. Usage:
 import argparse, json, os, re, shutil, sys, time
 from pathlib import Path
 import nbformat
-from nbconvert.preprocessors import ExecutePreprocessor
+try:
+    from nbconvert.preprocessors import ExecutePreprocessor
+except ModuleNotFoundError:            # nbconvert is optional, as in run_pipeline
+    ExecutePreprocessor = None
 
 BASE = Path(__file__).resolve().parent
 MODES = ['fewest','footprint','distance','governorate_tau_coverage','governorate_fewest']
@@ -76,12 +79,21 @@ def run_one(net, cov, execute=True):
     nb.cells.insert(0, probe)
     print(f"[run] {tag}: executing HSA_FINAL (isolated {outdir.name}) ...", flush=True)
     t0=time.time()
-    ep = ExecutePreprocessor(timeout=5400, kernel_name='python3', allow_errors=True)
     exec_nb = BASE/f"HSA_FINAL_{tag}_executed.ipynb"
-    try:
-        ep.preprocess(nb, {'metadata': {'path': str(BASE)}})
-    finally:
+    if ExecutePreprocessor is not None:
+        ep = ExecutePreprocessor(timeout=5400, kernel_name='python3', allow_errors=True)
+        try:
+            ep.preprocess(nb, {'metadata': {'path': str(BASE)}})
+        finally:
+            nbformat.write(nb, exec_nb)
+            print(f"[nb-saved] {exec_nb.name}", flush=True)
+    else:
+        # Same fallback run_pipeline uses: `jupyter execute` ships with
+        # jupyter_client/nbclient and needs no nbconvert.
+        import subprocess
         nbformat.write(nb, exec_nb)
+        subprocess.run(["jupyter", "execute", "--timeout=5400", "--inplace", str(exec_nb)],
+                       cwd=str(BASE), check=False)
         print(f"[nb-saved] {exec_nb.name}", flush=True)
     import geopandas as gpd
     counts={}

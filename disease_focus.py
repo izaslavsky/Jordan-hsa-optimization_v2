@@ -108,17 +108,3 @@ def canonicalize_series(series: pd.Series, network: str, data_dir="data") -> pd.
     canon = {lab.lower(): lab for lab in g[col].dropna().astype(str).unique()}
     return series.astype(str).map(lambda v: canon.get(v.strip().lower(), v))
 
-def disease_dir(out_dir, network: str, focus: str, data_dir="data"):
-    """
-    Output root for one disease inside a run directory.
-
-    A run directory is keyed by network, HSA mode and boundary version. Its
-    delineation, gravity allocation and per-HSA climate depend on those alone
-    and are shared across diseases -- the two allocation tables are ~739 MB
-    each, so duplicating them per disease is not an option. Everything
-    downstream of the disease counts belongs to exactly one disease and goes
-    here, so running a second disease cannot overwrite the first's datasets or
-    model results.
-    """
-    from pathlib import Path as _Path
-    return _Path(out_dir) / slug(canonical_group(network, focus, data_dir))

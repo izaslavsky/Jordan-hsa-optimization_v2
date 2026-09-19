@@ -55,11 +55,20 @@ import sys
 import warnings
 from pathlib import Path
 
+import random
+
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 
 warnings.filterwarnings("ignore")
+
+# run_pipeline.py seeds each notebook kernel with random.seed and np.random.seed
+# in addition to PYTHONHASHSEED. Matching all three is what makes a delineation
+# produced here comparable to one produced by the pipeline; with only the hash
+# seed pinned, a re-run can return a different anchor set of the same size.
+random.seed(int(_SEED))
+np.random.seed(int(_SEED))
 BASE_DIR = Path(__file__).resolve().parent
 
 # Objective term in the manuscript -> key in MODE_WEIGHT_PROFILES
@@ -125,7 +134,14 @@ def run_one(H, HSAOptimizer, facilities, network, mode, profile, tau, pop_path):
     setattr(H, "MODE_WEIGHT_PROFILES", profiles)
 
     opt = HSAOptimizer({"pop_path": pop_path, "tau_coverage": tau, "coarsen": 4})
-    result = opt.optimize(facilities.copy(), objective=mode, network_type=network)
+    # optimize() writes initial_radius_km back onto the frame it is handed, and
+    # the coverage repair later sizes candidate service areas from that column.
+    # Passing a copy here left the master without those radii, so the repair
+    # fell back to the rural default and ranked candidates by the wrong
+    # marginal population -- which is how a re-optimization of NCD picked
+    # AL-Nadeem (252,802) where the pipeline had picked Arish (231,037).
+    # The notebook passes one frame throughout; do the same.
+    result = opt.optimize(facilities, objective=mode, network_type=network)
     sel = result["facilities"]
 
     guard = H.make_relocation_overlap_guard(opt, overlap_threshold=0.80)

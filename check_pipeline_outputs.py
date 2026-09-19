@@ -18,7 +18,7 @@ delineation's own anchor list.
 
 Usage:
     python check_pipeline_outputs.py --network INF --mode footprint
-    python check_pipeline_outputs.py --network INF --mode fewest --out-dir out_inf_fewest_v7
+    python check_pipeline_outputs.py --network INF --mode fewest --out-dir out_INF_fewest_v7
     python check_pipeline_outputs.py --all          # every combination present
 """
 import argparse
@@ -46,7 +46,7 @@ NEEDS_DAILY  = {("INF", "footprint")}
 # is true but useless, so --all uses this map.
 HOME_DIR = {
     ("INF", "footprint"): "out_INF_footprint_v7",
-    ("INF", "fewest"):    "out_inf_fewest_v7",
+    ("INF", "fewest"):    "out_INF_fewest_v7",
     ("NCD", "footprint"): "out_NCD_footprint_v7",
 }
 
@@ -317,7 +317,10 @@ def main():
     ap.add_argument("--network", default="INF")
     ap.add_argument("--mode", default="footprint")
     ap.add_argument("--version", default="v7")
-    ap.add_argument("--out-dir", default="out")
+    ap.add_argument("--out-dir", default=None,
+                    help="run directory; derived from --network/--mode via "
+                         "HOME_DIR when omitted, so the combination is not "
+                         "checked against another run's directory by default")
     ap.add_argument("--all", action="store_true",
                     help="check every network/mode whose delineation exists")
     a = ap.parse_args()
@@ -333,7 +336,8 @@ def main():
         for net, mode in sorted(combos):
             check_combo(net, mode, a.version, home_of(net, mode), rep)
     else:
-        check_combo(a.network, a.mode, a.version, a.out_dir, rep)
+        out_dir = a.out_dir if a.out_dir else home_of(a.network, a.mode)
+        check_combo(a.network, a.mode, a.version, out_dir, rep)
 
     print(f"\n{'='*74}")
     rep.render()
