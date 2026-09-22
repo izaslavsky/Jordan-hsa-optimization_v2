@@ -52,6 +52,8 @@ MODULES = [
     "weight_sensitivity_reoptimize.py", "run_coverage_sensitivity.py",
     "check_no_hardcoding.py", "check_hsa_overlap.py", "check_pipeline_outputs.py",
     "reproduces_stored_delineation.py", "stage_isolated_run.py",
+    # assignment-certainty split behind supplement Table S6.2
+    "connectivity_reanalysis.py",
 ]
 ANALYSES = sorted(str(p.name) for p in HERE.glob("0[89]_*.py")) + \
            sorted(str(p.name) for p in HERE.glob("1[0-6]_*.py"))
@@ -155,9 +157,9 @@ def main():
 
     # out/ ships as an empty placeholder: the pipeline writes here.
     if apply:
-        (PUBLIC / "out").mkdir(exist_ok=True)
-        (PUBLIC / "out" / ".gitkeep").write_text("", encoding="utf-8")
-    planned.append("out/.gitkeep")
+        (PUBLIC / "out").mkdir(exist_ok=True)  # noqa: hardcode - public repo layout
+        (PUBLIC / "out" / ".gitkeep").write_text("", encoding="utf-8")  # noqa: hardcode
+    planned.append("out/.gitkeep")  # noqa: hardcode - path in the public repo, not a run dir
 
     for name in RETIRE:
         p = PUBLIC / name
