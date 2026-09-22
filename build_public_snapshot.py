@@ -62,7 +62,7 @@ DOCS = ["README.md", "SETUP_INSTRUCTIONS.md", "DATA_FLOW_ANALYSIS.md"]
 # .gitignore is NOT copied: the public repo needs its own allowlist-based
 # rules, and overwriting it with this repo's version silently removed the
 # out/ placeholder exception and the notebook allowlist.
-ROOT_EXTRA = ["requirements.txt", "LICENSE"]
+ROOT_EXTRA = ["requirements.txt", "LICENSE", "CITATION.cff"]
 PACKAGES = ["dlnm"]
 
 # Synthetic inputs and shared geography only. Real diagnosis files are excluded
