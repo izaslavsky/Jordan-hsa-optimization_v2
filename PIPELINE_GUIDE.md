@@ -105,7 +105,7 @@ ls data/SYNMODNCD_facility_coordinates.csv    # NCD synthetic facilities
 ls data/SYNMODNCD_patient_visits.csv          # NCD synthetic visits
 ls data/jordan_boundary.gpkg                  # Jordan outline
 ls data/jordan_governorates.gpkg              # Governorate boundaries
-ls data/hsa_metadata.csv                      # JMP sanitation quality (v6 HSAs)
+ls data/${NETWORK}_hsa_metadata.csv           # JMP sanitation quality, one file per network
 ls data/jor_ppp_2020_UNadj.tif               # WorldPop raster (if needed)
 ```
 
@@ -442,7 +442,7 @@ PYTHONHASHSEED=42 jupyter notebook
 
 **GEE export stuck:** GEE exports are asynchronous. Check task status at https://code.earthengine.google.com/tasks. Large exports (daily, 2+ years, 19 HSAs) can take 60–120 minutes. If all tasks show COMPLETED but the polling loop keeps running, Drive likely renamed one file to `filename (1).csv` from a prior run — the notebooks detect this after 10 stall polls and fall back to a fuzzy name search automatically.
 
-**`infra_quality` missing for new HSAs:** `data/hsa_metadata.csv` covers the v6 anchor set (17 HSAs). HSAs added in v7 (7 new anchors) have NaN `infra_quality`. Add JMP sanitation scores for those HSAs to use them in the DLNM effect-modifier analysis.
+**`infra_quality` missing for new HSAs:** `data/{NETWORK}_hsa_metadata.csv` covers the v6 anchor set (17 HSAs). HSAs added in v7 (7 new anchors) have NaN `infra_quality`. Add JMP sanitation scores for those HSAs to use them in the DLNM effect-modifier analysis.
 
 **Allocation table not found:** Run `Population_Allocation_Probabilistic_v2.ipynb` before `generate_daily_disease_counts.py`. The script looks for `out/INF_footprint_facility_hsa_assignments_{BOUNDARY_VERSION}.csv`.
 

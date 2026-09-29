@@ -69,7 +69,10 @@ PACKAGES = ["dlnm"]
 # by construction: nothing here matches INF_*/NCD_* without a SYN prefix.
 DATA_GLOBS = ["SYN*.csv", "jordan_boundary.gpkg", "jordan_governorates.gpkg",
               "jor_ppp_2020_*.tif", "jordan_islamic_calendar.csv",
-              "jmp_2025_jordan_governorate.csv", "hsa_metadata.csv"]
+              "jmp_2025_jordan_governorate.csv"]
+# The sanitation metadata is network-scoped ({prefix}_hsa_metadata.csv) and so
+# already ships via SYN*.csv. The unscoped name is retired below: leaving it in
+# place would let a reader silently fall back to another network's scores.
 DATA_DIRS = ["adm_boundaries"]
 
 # Anything matching these must never reach the public tree.
@@ -84,6 +87,7 @@ RETIRE = [
     "compare_delineations.ipynb",               # compares v6/v7/v8; not part of the reported workflow
     "patient_allocation.py",                    # superseded by population_allocation.py
     "network_utils.py",                         # no longer imported anywhere
+    "data/hsa_metadata.csv",                    # superseded by {prefix}_hsa_metadata.csv
 ]
 
 
